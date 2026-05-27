@@ -1,0 +1,11 @@
+Bienvenido al Sistema de Cargas de Notas.
+Proyecto Seleccionado: N° 3 AUDIT-GRADES PRO: SISTEMA DE CARGA DE NOTAS CON LOG DE AUDITORÍA INMUTABLE.
+
+Staff:
+Bárbara Jiménez - 31.511.036
+Juan Escalona - 25.871.066
+Wilmary Enrriquez - 28.434.992
+María José Marcano - 28.014.800
+Diana Lugo - 25.210.149
+Daniel Rondón - 27.624.986
+Sebastián Gómez - 25.029.245
