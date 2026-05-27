@@ -1,12 +1,36 @@
 import datetime
+import logging
+import os
 
-def registrar_auditoria(usuario, nota_anterior, nota_nueva):
-    fecha_hora = datetime.datetime.now()
-    log = f"[{fecha_hora}] Usuario: {usuario} | Cambio: {nota_anterior} -> {nota_nueva}"
+# Configuramos el log para que guarde un archivo de texto llamado 'auditoria_notas.log'
+# Si el archivo no existe, lo crea automáticamente.
+logging.basicConfig(
+    filename='auditoria_notas.log',
+    level=logging.INFO,
+    format='%(asctime)s - [AUDITORIA] - %(message)s',
+    encoding='utf-8'
+)
+
+def registrar_auditoria(usuario: str, nota_anterior: float, nota_nueva: float) -> bool:
+    """
+    Registra cambios de notas en un archivo de log persistente.
+    Retorna True si el registro fue exitoso.
+    """
+    try:
+        # Creamos el mensaje de forma estructurada
+        mensaje = f"Usuario: {usuario} | Cambio: {nota_anterior} -> {nota_nueva}"
+        
+        # Guardamos en el archivo log
+        logging.info(mensaje)
+        
+        # Feedback visual para la consola
+        print(f"✅ [AUDITORIA EXITOSA]: {mensaje}")
+        return True
     
-    # Esto es lo que el profesor quiere ver: una bitácora de cambios
-    print(f"✅ LOG GUARDADO: {log}")
-    return log
+    except Exception as e:
+        print(f"❌ [ERROR DE AUDITORIA]: {e}")
+        return False
 
-# Prueba rápida
-registrar_auditoria("Barbara", 12.0, 18.5)
+# Ejemplo de uso:
+if __name__ == "__main__":
+    registrar_auditoria("Barbara", 12.0, 18.5)
