@@ -1,0 +1,4 @@
+audit-grades-pro/
+__pycache__/
+*.log
+.env
