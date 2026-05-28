@@ -32,7 +32,7 @@ def crear_tablas():
             """
         ]
 
-        # 3. Ejecutar la creación de cada tabla
+        #Ejecutar la creación de cada tabla
         for tabla in tablas:
             cursor.execute(tabla)
         
