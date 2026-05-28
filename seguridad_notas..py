@@ -1,7 +1,7 @@
 def validar_datos(nota_ingresada: str) -> str:
     """
     Valida que la nota ingresada sea un número real entre 0 y 20.
-    Evita que el programa se detenga si se ingresan letras o caracteres extraños.
+    Evita que el programa se detenga si se ingresan letras o caracteres extraños
     """
     try:
         # Intentamos convertir la entrada a un número decimal
