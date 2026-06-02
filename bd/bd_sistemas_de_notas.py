@@ -22,7 +22,7 @@ def crear_tablas():
         tablas = [
             """
             CREATE TABLE IF NOT EXISTS notas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cedula INTEGER PRIMARY KEY AUTOINCREMENT,
                 estudiante TEXT NOT NULL,
                 nota REAL NOT NULL CHECK (nota >= 0 AND nota <= 20),
                 fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
