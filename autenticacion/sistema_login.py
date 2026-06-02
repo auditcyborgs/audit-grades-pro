@@ -42,7 +42,7 @@ def inicializar_base_de_datos():
     );
     """)
     
-    # 4. NUEVA TABLA: Materias 📚
+    # 4. NUEVA TABLA: Materias 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS materias (
         codigo_materia TEXT PRIMARY KEY,
@@ -50,7 +50,7 @@ def inicializar_base_de_datos():
     );
     """)
     
-    # 5. TABLA ACTUALIZADA: Notas Relacionales 📊
+    # 5. TABLA ACTUALIZADA: Notas Relacionales 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS notas (
         id_nota INTEGER PRIMARY KEY AUTOINCREMENT,
