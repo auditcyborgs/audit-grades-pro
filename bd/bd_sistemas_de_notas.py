@@ -1,53 +1,63 @@
-import psycopg2
+import os
+import sqlite3
+
 
 def crear_tablas():
+    conexion = None
+    cursor = None
     try:
-        # Base de datos WSL - PostgreSQL 16 
-        conexion = psycopg2.connect(
-            host="localhost",
-            database="sistema_de_notas",  # Asegúrate de haber creado esta BD en pgAdmin primero
-            user="postgres",
-            password="123456"
-        )
+        # Ruta del SQLite3 
+        ruta_carpeta = r"C:\Sistema_de_notas\audit-grades-pro\bd"
+        ruta_bd = os.path.join(ruta_carpeta, "sistema_de_notas.db")
+
+        
+        if not os.path.exists(ruta_carpeta):
+            os.makedirs(ruta_carpeta)
+
+        # 3. Conexión SQLite3
+        conexion = sqlite3.connect(ruta_bd)
         cursor = conexion.cursor()
 
-        # Creacion_Tablas
+        # 4. Creación de Tablas adaptadas a la sintaxis de SQLite3
         tablas = [
             """
             CREATE TABLE IF NOT EXISTS notas (
-                id SERIAL PRIMARY KEY,
-                estudiante VARCHAR(100) NOT NULL,
-                nota NUMERIC(4, 2) NOT NULL CHECK (nota >= 0 AND nota <= 20),
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                estudiante TEXT NOT NULL,
+                nota REAL NOT NULL CHECK (nota >= 0 AND nota <= 20),
                 fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """,
             """
             CREATE TABLE IF NOT EXISTS auditoria_notas (
-                id SERIAL PRIMARY KEY,
-                usuario VARCHAR(100) NOT NULL,
-                nota_anterior NUMERIC(4, 2),
-                nota_nueva NUMERIC(4, 2) NOT NULL,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario TEXT NOT NULL,
+                nota_anterior REAL,
+                nota_nueva REAL NOT NULL,
                 fecha_cambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-            """
+            """,
         ]
 
-        #Ejecutar la creación de cada tabla
+        # Ejecución de tabla
         for tabla in tablas:
             cursor.execute(tabla)
-        
-        # Guardar los cambios de forma permanente
+
+        # Guardar los cambios
         conexion.commit()
+        print(f"✅ ¡Base de datos creada en: {ruta_bd}!")
         print("✅ ¡Tablas 'notas' y 'auditoria_notas' creadas con éxito!")
 
     except Exception as e:
         print(f"❌ Error al intentar crear las tablas: {e}")
-        
+
     finally:
-        # Asegurarnos de cerrar las conexiones siempre
-        if conexion:
+        # Asegurarnos de cerrar las conexiones siempre y cuando se hayan creado
+        if cursor:
             cursor.close()
+        if conexion:
             conexion.close()
+
 
 if __name__ == "__main__":
     crear_tablas()
