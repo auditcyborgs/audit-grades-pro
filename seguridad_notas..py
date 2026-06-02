@@ -1,12 +1,9 @@
 def validar_datos(nota_ingresada: str) -> tuple[bool, str]:
     """
-<<<<<<< HEAD
     Valida que la nota ingresada sea un número real entre 0 y 20.
     Evita que el programa se detenga si se ingresan letras o caracteres extraños
-=======
     Valida que la nota sea un número entre 0 y 20.
     Retorna un par: (Es_valido, Mensaje)
->>>>>>> 976aa930d109f48555bd2fd0c9ded48d60a44375
     """
     try:
         # .strip() elimina espacios accidentales al inicio o final
