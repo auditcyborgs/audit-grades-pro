@@ -263,7 +263,7 @@ def vista_control_estudio(usuario):
 def vista_root(usuario):
     """Permisos Absolutos (Dueños del sistema): Registro forzado de cualquier rol."""
     while True:
-        print(f"\n--- ⚡ ACCESO TOTAL ROOT: {usuario['nombre'].upper()} ⚡ ---")
+        print(f"\n---  ACCESO TOTAL ROOT: {usuario['nombre'].upper()}  ---")
         print("1. Registrar cualquier Usuario (Root, Profe, Control de Estudio, Alumno)")
         print("2. Ver listado de todas las credenciales del sistema")
         print("3. Forzar borrado de un usuario")
@@ -345,7 +345,7 @@ def menu_principal():
             sesion = iniciar_sesion()
             if sesion:
                 rol_visible = "Control de Estudio" if sesion['rol'] == "administrador" else sesion['rol'].upper()
-                print(f"\n🔓 ¡Sesión autorizada! Bienvenido: {rol_visible}\n")
+                print(f"\n ¡Sesión autorizada! Bienvenido: {rol_visible}\n")
                 
                 if sesion["rol"] == "estudiante":
                     vista_estudiante(sesion)
