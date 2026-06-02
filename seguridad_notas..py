@@ -1,27 +1,31 @@
-def validar_datos(nota_ingresada: str) -> str:
+def validar_datos(nota_ingresada: str) -> tuple[bool, str]:
     """
+<<<<<<< HEAD
     Valida que la nota ingresada sea un número real entre 0 y 20.
     Evita que el programa se detenga si se ingresan letras o caracteres extraños
+=======
+    Valida que la nota sea un número entre 0 y 20.
+    Retorna un par: (Es_valido, Mensaje)
+>>>>>>> 976aa930d109f48555bd2fd0c9ded48d60a44375
     """
     try:
-        # Intentamos convertir la entrada a un número decimal
-        nota = float(nota_ingresada)
+        # .strip() elimina espacios accidentales al inicio o final
+        nota = float(nota_ingresada.strip())
         
-        # Validación de rango lógico para notas (0-20)
         if 0 <= nota <= 20:
-            return f"✅ Nota válida: {nota}"
+            return True, f"Nota válida: {nota}"
         else:
-            return f"❌ Error: La nota {nota} está fuera del rango permitido (0-20)"
+            return False, f"Error: La nota {nota} está fuera del rango (0-20)"
             
     except ValueError:
-        # Esto ocurre si el usuario escribe letras en lugar de números
-        return "❌ Error: Valor inválido. Por favor, ingresa solo números (ejemplo: 15.5)"
+        return False, "Error: Entrada inválida. Por favor, ingresa solo números."
     except Exception as e:
-        # Esto captura cualquier otro error inesperado
-        return f"❌ Error crítico: {str(e)}"
+        return False, f"Error crítico: {str(e)}"
 
-# Prueba de robustez
+# Prueba de robustez mejorada
 if __name__ == "__main__":
-    print(validar_datos("15.5")) # Debería pasar
-    print(validar_datos("25"))   # Debería dar error de rango
-    print(validar_datos("hola")) # Debería dar error de tipo
+    pruebas = ["15.5", "25", "hola", " 10 "] # Incluí un caso con espacios
+    
+    for p in pruebas:
+        es_valido, mensaje = validar_datos(p)
+        print(f"Entrada: '{p}' -> {mensaje}")

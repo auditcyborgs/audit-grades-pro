@@ -1,4 +1,15 @@
+<<<<<<< HEAD
 audit-grades-pro/
 __pycache__/
 *.log
 .env
+=======
+<<<<<<< HEAD
+auditoria_notas.log
+=======
+audit-grades-pro/
+__pycache__/
+*.log
+.env
+>>>>>>> afb604c2f30d9a7d581dd8b14e44b9d9bbc7cc9f
+>>>>>>> 976aa930d109f48555bd2fd0c9ded48d60a44375
