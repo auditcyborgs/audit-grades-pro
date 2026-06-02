@@ -3,27 +3,27 @@ import os
 
 # CONFIGURACIÓN DE TU RUTA Y BASE DE DATOS REAL
 CARPETA_BD = r"C:\Sistema_de_notas\audit-grades-pro\bd"
-DB_NAME = os.path.join(CARPETA_BD, "sistema_de_notas.db") # Usa tu archivo existente
+DB_NAME = os.path.join(CARPETA_BD, "sistema_de_notas.db")
 
 def inicializar_base_de_datos():
-    """Verifica la carpeta y crea las tablas si aún no existen en tu archivo .db"""
+    """Crea la estructura de tablas relacionales e inyecta los Roots."""
     if not os.path.exists(CARPETA_BD):
         os.makedirs(CARPETA_BD)
-        print(f"📁 Carpeta creada automáticamente en: {CARPETA_BD}")
 
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
+    cursor.execute("PRAGMA foreign_keys = ON;")
     
-    # 1. Tabla principal de Autenticación (Cédula como serial/PRIMARY KEY)
+    # 1. Tabla de Usuarios (Credenciales)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         cedula TEXT PRIMARY KEY,
         contrasena TEXT NOT NULL,
-        rol TEXT NOT NULL CHECK(rol IN ('root', 'profesor', 'estudiante'))
+        rol TEXT NOT NULL CHECK(rol IN ('root', 'profesor', 'estudiante', 'administrador'))
     );
     """)
     
-    # 2. Tabla de Datos del Estudiante
+    # 2. Tabla de Estudiantes
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS estudiantes (
         cedula_estudiante TEXT PRIMARY KEY,
@@ -32,174 +32,299 @@ def inicializar_base_de_datos():
     );
     """)
     
-    # 3. Tabla de Notas (Relacionada con estudiantes)
+    # 3. Tabla de Administradores (Control de Estudio)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS administradores (
+        cedula_admin TEXT PRIMARY KEY,
+        nombre_completo TEXT NOT NULL,
+        cargo TEXT,
+        FOREIGN KEY(cedula_admin) REFERENCES usuarios(cedula) ON DELETE CASCADE
+    );
+    """)
+    
+    # 4. NUEVA TABLA: Materias 📚
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS materias (
+        codigo_materia TEXT PRIMARY KEY,
+        nombre_materia TEXT NOT NULL UNIQUE
+    );
+    """)
+    
+    # 5. TABLA ACTUALIZADA: Notas Relacionales 📊
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS notas (
         id_nota INTEGER PRIMARY KEY AUTOINCREMENT,
         cedula_estudiante TEXT,
-        materia TEXT NOT NULL,
-        calificacion REAL NOT NULL,
+        codigo_materia TEXT,
+        calificacion REAL NOT NULL DEFAULT 0.0 CHECK(calificacion >= 0.0 AND calificacion <= 20.0),
         comentario TEXT,
-        FOREIGN KEY(cedula_estudiante) REFERENCES estudiantes(cedula_estudiante) ON DELETE CASCADE
+        FOREIGN KEY(cedula_estudiante) REFERENCES estudiantes(cedula_estudiante) ON DELETE CASCADE,
+        FOREIGN KEY(codigo_materia) REFERENCES materias(codigo_materia) ON DELETE CASCADE,
+        UNIQUE(cedula_estudiante, codigo_materia) -- Evita duplicar la misma materia para un alumno
     );
     """)
     
     conexion.commit()
+    
+    # Inyección de Roots Iniciales (Todo en minúsculas)
+    roots = ["daniel", "barbara", "juan", "sebastian", "wilmary", "diana"]
+    for r in roots:
+        try:
+            cursor.execute("INSERT OR IGNORE INTO usuarios (cedula, contrasena, rol) VALUES (?, '1234', 'root');", (r,))
+        except sqlite3.Error:
+            pass
+
+    conexion.commit()
     conexion.close()
+    print("✔️ Base de datos sincronizada. Relaciones y Roles Root cargados correctamente.")
 
 # =====================================================================
-# LÓGICA DE REGISTRO E INICIO DE SESIÓN
+# SISTEMA DE AUTENTICACIÓN
 # =====================================================================
 
-def registrar_usuario():
-    print("\n--- REGISTRO DE NUEVO USUARIO ---")
-    cedula = input("Ingrese la Cédula: ").strip()
-    contrasena = input("Ingrese la Contraseña: ").strip()
-    print("Seleccione el Rol:")
-    print("1. Estudiante\n2. Profesor\n3. Root")
-    opcion_rol = input("Opción: ").strip()
+def registrar_usuario_publico():
+    print("\n--- REGISTRO PÚBLICO (SOLO ALUMNOS Y PROFES) ---")
+    cedula = input("Cédula / Usuario: ").strip()
+    contrasena = input("Contraseña: ").strip()
+    print("Seleccione su Rol:\n1. Estudiante\n2. Profesor")
+    opc = input("Opción: ").strip()
     
-    roles = {"1": "estudiante", "2": "profesor", "3": "root"}
-    rol = roles.get(opcion_rol)
-    
+    rol = "estudiante" if opc == "1" else "profesor" if opc == "2" else None
     if not rol:
-        print("❌ Opción de rol inválida.")
+        print("❌ Opción inválida.")
         return
 
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
-    
     try:
         cursor.execute("INSERT INTO usuarios (cedula, contrasena, rol) VALUES (?, ?, ?);", (cedula, contrasena, rol))
-        
         if rol == "estudiante":
-            nombre = input("Ingrese el Nombre Completo del Estudiante: ").strip()
+            nombre = input("Nombre Completo del Alumno: ").strip()
             cursor.execute("INSERT INTO estudiantes (cedula_estudiante, nombre_completo) VALUES (?, ?);", (cedula, nombre))
-            
-            # Materias base por defecto para el estudiante recién creado
-            cursor.execute("INSERT INTO notas (cedula_estudiante, materia, calificacion) VALUES (?, 'Matemáticas', 0.0);", (cedula,))
-            cursor.execute("INSERT INTO notas (cedula_estudiante, materia, calificacion) VALUES (?, 'Programación', 0.0);", (cedula,))
-            
         conexion.commit()
-        print(f"✔️ Usuario con cédula {cedula} y rol '{rol}' registrado con éxito.")
+        print(f"✔️ Usuario registrado exitosamente como {rol.upper()}.")
     except sqlite3.IntegrityError:
-        print("❌ Error: Esa cédula ya se encuentra registrada en el sistema.")
+        print("❌ Error: Ese usuario o cédula ya existe.")
     finally:
         conexion.close()
 
 def iniciar_sesion():
     print("\n--- INICIO DE SESIÓN ---")
-    cedula = input("Cédula: ").strip()
+    cedula = input("Usuario / Cédula: ").strip()
     contrasena = input("Contraseña: ").strip()
     
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
-    
     cursor.execute("SELECT cedula, rol FROM usuarios WHERE cedula = ? AND contrasena = ?;", (cedula, contrasena))
     usuario = cursor.fetchone()
     
     if usuario:
-        datos_sesion = {"cedula": usuario[0], "rol": usuario[1], "nombre": "Usuario"}
-        
-        # Si es estudiante, extraemos su nombre real desde la tabla estudiantes
+        nombre = usuario[0]
         if usuario[1] == "estudiante":
             cursor.execute("SELECT nombre_completo FROM estudiantes WHERE cedula_estudiante = ?;", (cedula,))
-            res_nombre = cursor.fetchone()
-            if res_nombre:
-                datos_sesion["nombre"] = res_nombre[0]
-                
+            res = cursor.fetchone()
+            if res: nombre = res[0]
+        elif usuario[1] == "administrador":
+            cursor.execute("SELECT nombre_completo FROM administradores WHERE cedula_admin = ?;", (cedula,))
+            res = cursor.fetchone()
+            if res: nombre = res[0]
+            
         conexion.close()
-        return datos_sesion
+        return {"cedula": usuario[0], "rol": usuario[1], "nombre": nombre}
     
     conexion.close()
-    print("❌ Cédula o contraseña incorrectas.")
+    print("❌ Credenciales incorrectas.")
     return None
 
 # =====================================================================
-# VISTAS Y PERMISOS SEGÚN EL ROL
+# VISTAS DE USUARIOS
 # =====================================================================
 
 def vista_estudiante(usuario):
-    """El estudiante solo ve sus propias notas y puede dejar comentarios."""
+    """El estudiante SOLO puede ver sus materias, notas y comentarios."""
     while True:
         print(f"\n--- PANEL DE ESTUDIANTE: {usuario['nombre']} ---")
-        print("1. Ver mis notas y comentarios")
-        print("2. Escribir/Modificar un comentario en una materia")
-        print("3. Cerrar Sesión")
+        print("1. Ver mis Notas (Record Académico)")
+        print("2. Cerrar Sesión")
         opcion = input("Seleccione una opción: ").strip()
         
-        conexion = sqlite3.connect(DB_NAME)
-        cursor = conexion.cursor()
-        
         if opcion == "1":
-            cursor.execute("SELECT id_nota, materia, calificacion, comentario FROM notas WHERE cedula_estudiante = ?;", (usuario['cedula'],))
+            conexion = sqlite3.connect(DB_NAME)
+            cursor = conexion.cursor()
+            # Unimos notas con materias para mostrar la información limpia
+            cursor.execute("""
+                SELECT m.codigo_materia, m.nombre_materia, n.calificacion, n.comentario
+                FROM notas n
+                INNER JOIN materias m ON n.codigo_materia = m.codigo_materia
+                WHERE n.cedula_estudiante = ?;
+            """, (usuario['cedula'],))
             notas = cursor.fetchall()
-            print("\nID Nota | Materia | Nota | Tu Comentario")
-            print("-" * 55)
-            for n in notas:
-                print(f"{n[0]} | {n[1]} | {n[2]} | {n[3] if n[3] else 'Sin comentario'}")
-                
-        elif opcion == "2":
-            id_nota = input("Ingrese el ID de la nota a comentar: ").strip()
-            nuevo_comentario = input("Escriba su comentario: ").strip()
-            # Asegura que el estudiante solo pueda modificar comentarios de SUS PROPIAS notas
-            cursor.execute("UPDATE notas SET comentario = ? WHERE id_nota = ? AND cedula_estudiante = ?;", (nuevo_comentario, id_nota, usuario['cedula']))
-            conexion.commit()
-            if cursor.rowcount > 0:
-                print("✔️ Comentario guardado correctamente.")
-            else:
-                print("❌ No se pudo guardar (ID inválido o la nota no te pertenece).")
-                
-        elif opcion == "3":
             conexion.close()
+            
+            print("\nCódigo    | Materia              | Nota  | Comentario del Profesor")
+            print("-" * 75)
+            if not notas:
+                print("No tienes materias inscritas o notas cargadas aún.")
+            for n in notas:
+                print(f"{n[0]:<9} | {n[1]:<20} | {n[2]:<5} | {n[3] if n[3] else 'Sin observaciones'}")
+        elif opcion == "2":
             break
-        conexion.close()
 
 def vista_profesor(usuario):
-    """El profesor ve los nombres y cédulas de todos, y puede modificar calificaciones."""
+    """El profesor puede agregar materias, alumnos e inscribirlos."""
     while True:
         print(f"\n--- PANEL DE PROFESOR ---")
-        print("1. Ver lista de estudiantes y sus notas")
-        print("2. Registrar/Modificar nota de un estudiante")
-        print("3. Cerrar Sesión")
+        print("1. Crear Nueva Materia")
+        print("2. Inscribir Estudiante en Materia")
+        print("3. Cargar / Modificar Nota de un Estudiante")
+        print("4. Ver Listado de Notas General")
+        print("5. Cerrar Sesión")
         opcion = input("Seleccione una opción: ").strip()
         
         conexion = sqlite3.connect(DB_NAME)
         cursor = conexion.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON;")
         
         if opcion == "1":
-            # Unimos la tabla estudiantes y notas mediante la cédula para cruzar la información
-            cursor.execute("""
-                SELECT e.cedula_estudiante, e.nombre_completo, n.id_nota, n.materia, n.calificacion, n.comentario
-                FROM estudiantes e
-                INNER JOIN notas n ON e.cedula_estudiante = n.cedula_estudiante;
-            """)
-            registros = cursor.fetchall()
-            print("\nCédula | Estudiante | ID Nota | Materia | Nota | Comentario del Alumno")
-            print("-" * 85)
-            for r in registros:
-                print(f"{r[0]} | {r[1]} | {r[2]} | {r[3]} | {r[4]} | {r[5] if r[5] else ''}")
+            cod = input("Código de la materia (ej: INF-01): ").strip().upper()
+            nom = input("Nombre de la materia (ej: Matematica I): ").strip()
+            try:
+                cursor.execute("INSERT INTO materias (codigo_materia, nombre_materia) VALUES (?, ?);", (cod, nom))
+                conexion.commit()
+                print(f"✔️ Materia '{nom}' creada exitosamente.")
+            except sqlite3.IntegrityError:
+                print("❌ Error: El código o nombre de materia ya existe.")
                 
         elif opcion == "2":
-            id_nota = input("Ingrese el ID de la nota que desea modificar: ").strip()
-            nueva_nota = input("Ingrese la nueva calificación: ").strip()
-            cursor.execute("UPDATE notas SET calificacion = ? WHERE id_nota = ?;", (nueva_nota, id_nota))
-            conexion.commit()
-            if cursor.rowcount > 0:
-                print("✔️ Nota modificada con éxito.")
-            else:
-                print("❌ El ID de la nota no existe.")
+            ced = input("Cédula del Estudiante a inscribir: ").strip()
+            cod = input("Código de la Materia: ").strip().upper()
+            try:
+                cursor.execute("INSERT INTO notas (cedula_estudiante, codigo_materia, calificacion) VALUES (?, ?, 0.0);", (ced, cod))
+                conexion.commit()
+                print(f"✔️ Estudiante {ced} inscrito con éxito en la materia {cod}.")
+            except sqlite3.IntegrityError:
+                print("❌ Error: Verifique que el alumno y la materia existan, o si ya está inscrito.")
                 
         elif opcion == "3":
+            ced = input("Cédula del Estudiante: ").strip()
+            cod = input("Código de la Materia: ").strip().upper()
+            try:
+                nota = float(input("Ingrese la Calificación (0-20): "))
+                comentario = input("Comentario u Observación: ").strip()
+                cursor.execute("""
+                    UPDATE notas SET calificacion = ?, comentario = ? 
+                    WHERE cedula_estudiante = ? AND codigo_materia = ?;
+                """, (nota, comentario, ced, cod))
+                conexion.commit()
+                if cursor.rowcount > 0:
+                    print("✔️ Nota cargada correctamente.")
+                else:
+                    print("❌ El alumno no está inscrito en esa materia.")
+            except ValueError:
+                print("❌ Ingrese una nota válida con números enteros o decimales.")
+                
+        elif opcion == "4":
+            cursor.execute("""
+                SELECT n.id_nota, e.nombre_completo, m.nombre_materia, n.calificacion 
+                FROM notas n
+                INNER JOIN estudiantes e ON n.cedula_estudiante = e.cedula_estudiante
+                INNER JOIN materias m ON n.codigo_materia = m.codigo_materia;
+            """)
+            regs = cursor.fetchall()
+            print("\nID Nota | Estudiante           | Materia              | Nota")
+            print("-" * 65)
+            for r in regs:
+                print(f"{r[0]:<7} | {r[1]:<20} | {r[2]:<20} | {r[3]}")
+                
+        elif opcion == "5":
             conexion.close()
             break
         conexion.close()
 
+def vista_control_estudio(usuario):
+    while True:
+        print(f"\n--- PANEL DE CONTROL DE ESTUDIO ---")
+        print("1. Ver todas las materias registradas")
+        print("2. Cerrar Sesión")
+        opc = input("Opción: ").strip()
+        if opc == "1":
+            conexion = sqlite3.connect(DB_NAME)
+            cursor = conexion.cursor()
+            cursor.execute("SELECT * FROM materias;")
+            mats = cursor.fetchall()
+            conexion.close()
+            print("\nCódigo    | Materia")
+            print("-" * 35)
+            for m in mats:
+                print(f"{m[0]:<9} | {m[1]}")
+        elif opc == "2":
+            break
+
 def vista_root(usuario):
-    """Panel de control absoluto"""
-    print(f"\n--- PANEL ROOT ---")
-    print(f"Modo Dios activo en el archivo: {DB_NAME}")
-    input("Presione Enter para regresar al menú...")
+    """Permisos Absolutos (Dueños del sistema): Registro forzado de cualquier rol."""
+    while True:
+        print(f"\n--- ⚡ ACCESO TOTAL ROOT: {usuario['nombre'].upper()} ⚡ ---")
+        print("1. Registrar cualquier Usuario (Root, Profe, Control de Estudio, Alumno)")
+        print("2. Ver listado de todas las credenciales del sistema")
+        print("3. Forzar borrado de un usuario")
+        print("4. Cerrar Sesión")
+        opcion = input("Seleccione una opción: ").strip()
+        
+        conexion = sqlite3.connect(DB_NAME)
+        cursor = conexion.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON;")
+        
+        if opcion == "1":
+            cedula = input("Cédula/ID: ").strip()
+            contrasena = input("Contraseña: ").strip()
+            print("Seleccione Rol:\n1. Root\n2. Profesor\n3. Administrador (Control de Estudio)\n4. Estudiante")
+            r_opc = input("Opción: ").strip()
+            
+            roles = {"1": "root", "2": "profesor", "3": "administrador", "4": "estudiante"}
+            rol = roles.get(r_opc)
+            
+            if not rol:
+                print("❌ Rol inválido.")
+                continue
+                
+            try:
+                cursor.execute("INSERT INTO usuarios (cedula, contrasena, rol) VALUES (?, ?, ?);", (cedula, contrasena, rol))
+                if rol == "estudiante":
+                    nom = input("Nombre Completo del Estudiante: ").strip()
+                    cursor.execute("INSERT INTO estudiantes (cedula_estudiante, nombre_completo) VALUES (?, ?);", (cedula, nom))
+                elif rol == "administrador":
+                    nom = input("Nombre Completo del Personal: ").strip()
+                    cargo = input("Cargo (ej: Jefe de Control de Estudios): ").strip()
+                    cursor.execute("INSERT INTO administradores (cedula_admin, nombre_completo, cargo) VALUES (?, ?, ?);", (cedula, nom, cargo))
+                conexion.commit()
+                print(f"✔️ {rol.upper()} registrado con éxito por la administración superior.")
+            except sqlite3.IntegrityError:
+                print("❌ El ID/Cédula ya existe.")
+                
+        elif opcion == "2":
+            cursor.execute("SELECT cedula, rol FROM usuarios;")
+            usuarios = cursor.fetchall()
+            print("\nUsuario/ID           | Rol")
+            print("-" * 35)
+            for u in usuarios:
+                print(f"{u[0]:<20} | {u[1]}")
+                
+        elif opcion == "3":
+            ced = input("Ingrese la cédula/ID del usuario a eliminar del sistema: ").strip()
+            if ced in ["daniel", "barbara", "juan", "sebastian", "wilmary", "diana"]:
+                print("❌ Seguridad: No puedes auto-eliminar a los fundadores del sistema.")
+                continue
+            cursor.execute("DELETE FROM usuarios WHERE cedula = ?;", (ced,))
+            conexion.commit()
+            if cursor.rowcount > 0:
+                print(f"💥 Usuario {ced} eliminado de raíz de la base de datos.")
+            else:
+                print("❌ El usuario no existe.")
+                
+        elif opcion == "4":
+            conexion.close()
+            break
+        conexion.close()
 
 # =====================================================================
 # MENÚ PRINCIPAL
@@ -209,26 +334,29 @@ def menu_principal():
     inicializar_base_de_datos()
     while True:
         print(f"\n========== AUDIT GRADES PRO ==========")
-        print(f"Base de datos: {DB_NAME}")
-        print("1. Registrarse (Crear Usuario, Contraseña y Rol)")
+        print("1. Registrarse (Público: Estudiantes y Profesores)")
         print("2. Iniciar Sesión")
         print("3. Salir")
         opcion = input("Seleccione una opción: ").strip()
         
         if opcion == "1":
-            registrar_usuario()
+            registrar_usuario_publico()
         elif opcion == "2":
             sesion = iniciar_sesion()
             if sesion:
-                print(f"\n🔓 ¡Sesión autorizada! Rol asignado: {sesion['rol']}\n")
+                rol_visible = "Control de Estudio" if sesion['rol'] == "administrador" else sesion['rol'].upper()
+                print(f"\n🔓 ¡Sesión autorizada! Bienvenido: {rol_visible}\n")
+                
                 if sesion["rol"] == "estudiante":
                     vista_estudiante(sesion)
                 elif sesion["rol"] == "profesor":
                     vista_profesor(sesion)
+                elif sesion["rol"] == "administrador":
+                    vista_control_estudio(sesion)
                 elif sesion["rol"] == "root":
                     vista_root(sesion)
         elif opcion == "3":
-            print("¡Cerrando el sistema escolar!")
+            print("¡Cerrando el sistema de auditoría escolar!")
             break
         else:
             print("❌ Opción inválida.")
