@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from datetime import datetime
 
-from auditoria import registrar_auditoria, validar_nota, obtener_historial_auditoria
+from auditoria import registrar_auditoria, validar_nota
 
 ctk.set_appearance_mode("System")  
 ctk.set_default_color_theme("blue")  
@@ -13,7 +13,6 @@ class ActionPanel(ctk.CTkFrame):
         
         self.configure(fg_color="transparent")
         
-        # --- DISEÑO DE JUAN (INTACTO) ---
         self.title_label = ctk.CTkLabel(
             self, text="Auditar Calificación", 
             font=ctk.CTkFont(size=18, weight="bold")
@@ -44,7 +43,6 @@ class ActionPanel(ctk.CTkFrame):
         self.submit_btn.pack(fill="x", pady=20)
 
     def _on_submit(self):
-
         student = self.student_entry.get()
         grade = self.grade_entry.get()  
         subject = self.subject_menu.get()
@@ -55,11 +53,10 @@ class ActionPanel(ctk.CTkFrame):
         self.student_entry.configure(border_color=["#979da2", "#565b5e"])
         
         es_valida, mensaje_error = validar_nota(grade)
-        
         if not es_valida:
-            print(f"❌ [FRONTEND - BLOQUEADO]: {mensaje_error}")
+            print(f"❌ [BLOQUEADO]: {mensaje_error}")
             self.grade_entry.configure(border_color="#e74c3c")
-            return
+            return 
         
         self.grade_entry.configure(border_color=["#979da2", "#565b5e"])
         
@@ -71,7 +68,7 @@ class ActionPanel(ctk.CTkFrame):
             f"Registro Nota: {student} -> {subject}: {grade}", 
             mock_hash
         )
-        
+    
         registrar_auditoria(
             usuario="Barbara_Admin",  
             estudiante=student,
@@ -85,44 +82,43 @@ class ActionPanel(ctk.CTkFrame):
 
 
 class AuditLogsTable(ctk.CTkScrollableFrame):
-    """Componente scrollable optimizado de Juan para mostrar el historial."""
+    """Componente de tabla optimizado y corregido para evitar solapamientos."""
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         
-        self.grid_columnconfigure(0, weight=1) 
-        self.grid_columnconfigure(1, weight=2) 
-        self.grid_columnconfigure(2, weight=1) 
+        # Distribución de columnas balanceada para que nada se pise
+        self.grid_columnconfigure(0, weight=2) # Espacio para Fecha
+        self.grid_columnconfigure(1, weight=4) # Espacio ancho para la Acción
+        self.grid_columnconfigure(2, weight=2) # Espacio para el Hash
         
         self.current_row = 1
         
         headers = ["Fecha/Hora", "Acción Realizada", "Firma Digital (Hash)"]
         for col, text in enumerate(headers):
-            lbl = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(size=12, weight="bold"), text_color="gray")
-            lbl.grid(row=0, column=col, padx=10, pady=5, sticky="w")
-
-        try:
-            registros_reales = obtener_historial_auditoria()
-            for fecha, accion in registros_reales:
-                self.add_log_entry(fecha, accion, "0xRealLog")
-        except Exception as e:
-            print(f"Aviso al iniciar tabla: {e}")
+            padx_config = (20, 10) if col == 0 else 10
+            lbl = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(size=12, weight="bold"), text_color="gray", anchor="w")
+            lbl.grid(row=0, column=col, padx=padx_config, pady=5, sticky="w")
 
     def add_log_entry(self, timestamp: str, action: str, crypto_hash: str):
-        """Método de Juan para insertar filas en tiempo real."""
+        """Inserta las filas de forma ordenada y alineada."""
         data = [timestamp, action, crypto_hash]
         
         for col_idx, text in enumerate(data):
             font_style = ctk.CTkFont(family="Courier", size=11) if col_idx == 2 else ctk.CTkFont(size=12)
             text_color = "#2ecc71" if col_idx == 2 else ["#000000", "#FFFFFF"]
             
-            lbl = ctk.CTkLabel(self, text=text, font=font_style, text_color=text_color)
-            lbl.grid(row=self.current_row, column=col_idx, padx=10, pady=8, sticky="w")
+            lbl = ctk.CTkLabel(self, text=text, font=font_style, text_color=text_color, anchor="w")
+            
+            # Margen de seguridad en la primera columna para evitar el recorte del "20"
+            padx_config = (20, 10) if col_idx == 0 else 10
+            
+            lbl.grid(row=self.current_row, column=col_idx, padx=padx_config, pady=8, sticky="w")
             
         self.current_row += 1
 
 
 class DashboardFrame(ctk.CTkFrame):
-    """Contenedor principal del Dashboard de Juan."""
+    """Contenedor principal del Dashboard."""
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         
@@ -133,12 +129,12 @@ class DashboardFrame(ctk.CTkFrame):
         self.action_panel = ActionPanel(self)
         self.action_panel.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
         
-        self.logs_table = AuditLogsTable(self, label_text="Regristros de Calificaciones")
+        self.logs_table = AuditLogsTable(self, label_text="Registros de Calificaciones")
         self.logs_table.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
 
 
 class AuditGradesApp(ctk.CTk):
-    """Ventana principal de la aplicación."""
+    """Ventana principal de la aplicación AUDIT-GRADES PRO."""
     def __init__(self):
         super().__init__()
         
