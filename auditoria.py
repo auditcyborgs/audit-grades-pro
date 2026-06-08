@@ -1,9 +1,6 @@
 import logging
 import os
 
-# ==========================================
-# CONFIGURACIÓN DEL LOG (ARCHIVO DE TEXTO)
-# ==========================================
 logging.basicConfig(
     filename='auditoria_notas.log',
     level=logging.INFO,
@@ -11,9 +8,6 @@ logging.basicConfig(
     encoding='utf-8'
 )
 
-# ==========================================
-# CAPA DE SEGURIDAD (VALIDACIONES)
-# ==========================================
 def validar_nota(nota_ingresada: str) -> tuple[bool, str]:
     """
     Valida que la nota ingresada cumpla estrictamente con las reglas:
@@ -41,9 +35,6 @@ def validar_nota(nota_ingresada: str) -> tuple[bool, str]:
     return True, "Nota válida"
 
 
-# ==========================================
-# CAPA DE PERSISTENCIA (GUARDAR Y LEER LOGS)
-# ==========================================
 def registrar_auditoria(usuario: str, estudiante: str, materia: str, nota_nueva_str: str, nota_anterior: int = 0) -> bool:
     """
     Aplica la doble capa de validación en el backend y, si todo es correcto,
