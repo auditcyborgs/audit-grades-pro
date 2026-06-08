@@ -22,23 +22,19 @@ def validar_nota(nota_ingresada: str) -> tuple[bool, str]:
     3. No puede contener letras ni símbolos.
     4. Debe estar en el rango entero de 0 a 20 (bloquea negativos).
     """
-    # 1. Verificar si el campo está vacío
     if not nota_ingresada or not nota_ingresada.strip():
         return False, "Error: El campo de la nota no puede estar vacío."
     
     nota_str = nota_ingresada.strip()
     
-    # 2. Bloquear decimales de forma explícita
     if "." in nota_str or "," in nota_str:
         return False, "Error: No se permiten números decimales. Ingrese un número entero."
     
-    # 3. Intentar convertir a entero (Atrapa letras, símbolos y caracteres especiales)
     try:
         nota = int(nota_str)
     except ValueError:
         return False, f"Error: '{nota_ingresada}' contiene letras o símbolos no válidos."
     
-    # 4. Validación de rango (Bloquea automáticamente los números negativos)
     if not (0 <= nota <= 20):
         return False, f"Error: La nota {nota} está fuera del rango permitido (0-20)."
     
@@ -53,7 +49,6 @@ def registrar_auditoria(usuario: str, estudiante: str, materia: str, nota_nueva_
     Aplica la doble capa de validación en el backend y, si todo es correcto,
     escribe de forma persistente el registro de auditoría en el archivo log.
     """
-    # Doble verificación de seguridad antes de escribir el archivo
     es_valida, mensaje = validar_nota(nota_nueva_str)
     if not es_valida:
         print(f"❌ [FALLO DE AUDITORÍA - BLOQUEADO POR SEGURIDAD]: {mensaje}")
@@ -61,9 +56,9 @@ def registrar_auditoria(usuario: str, estudiante: str, materia: str, nota_nueva_
 
     try:
         nota_final = int(nota_nueva_str.strip())
-        mensaje_log = f"Profesor: {usuario} | Estudiante: {student if 'student' in locals() else estudiante} | Materia: {materia} | Nota: {nota_anterior} -> {nota_final}"
+        # Aquí corregimos el error: ahora dice {estudiante} correctamente
+        mensaje_log = f"Profesor: {usuario} | Estudiante: {estudiante} | Materia: {materia} | Nota: {nota_anterior} -> {nota_final}"
         
-        # Guardamos físicamente en el archivo de texto log
         logging.info(mensaje_log)
         print(f"✅ [AUDITORIA EXITOSA]: {mensaje_log}")
         return True
@@ -82,9 +77,7 @@ def obtener_historial_auditoria():
     if os.path.exists('auditoria_notas.log'):
         with open('auditoria_notas.log', 'r', encoding='utf-8') as archivo:
             for linea in archivo:
-                # Nos aseguramos de procesar únicamente líneas con la etiqueta de auditoría
                 if "[AUDITORIA]" in linea:
-                    # Separamos la estampa de tiempo del contenido del mensaje
                     partes = linea.split(" - [AUDITORIA] - ")
                     fecha_hora = partes[0]
                     detalles = partes[1].strip()
