@@ -1,6 +1,7 @@
 import customtkinter as ctk
 from datetime import datetime
 
+# Tu importación del backend se queda aquí arriba fija
 from auditoria import registrar_auditoria
 
 ctk.set_appearance_mode("System")  
@@ -52,20 +53,41 @@ class ActionPanel(ctk.CTkFrame):
             return
             
         self.student_entry.configure(border_color=["#979da2", "#565b5e"])
-        
+        self.grade_entry.configure(border_color=["#979da2", "#565b5e"])
         
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        
+        # Dejamos la lógica del hash de Juan intacta como pediste
         mock_hash = "0x" + str(hex(hash(student + grade)))[2:10] + "...done"
         
-        
+        # Se agrega visualmente a la tabla de Juan con su hash
         self.master.logs_table.add_log_entry(
             current_time, 
             f"Registro Nota: {student} -> {subject}: {grade}", 
             mock_hash
         )
         
-        # TODO: Conectar aquí la lógica de persistencia del Backend:
+        # === AQUÍ CONECTAMOS TU BACKEND DE AUDITORÍA REAL ===
+        try:
+            # Convertimos la nota a número decimal (float)
+            nota_final = float(grade)
+            usuario_actual = "Barbara_Admin"  # Usuario temporal para pruebas
+            
+            # Llamamos a tu función para que escriba en el archivo .log
+            registrar_auditoria(
+                usuario=usuario_actual,
+                estudiante=student,
+                materia=subject,
+                nota_nueva=nota_final,
+                nota_anterior=0.0
+            )
+        except ValueError:
+            print("❌ Error: La nota introducida no es un número válido.")
+            self.grade_entry.configure(border_color="#e74c3c") # Pone el campo nota en rojo
+            return
+        # ===================================================
        
+        # Se limpian las cajas de texto al final de todo
         self.student_entry.delete(0, 'end')
         self.grade_entry.delete(0, 'end')
 
