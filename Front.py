@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from datetime import datetime
 
-from auditoria import registrar_auditoria
+from auditoria import registrar_auditoria, validar_nota, obtener_historial_auditoria
 
 ctk.set_appearance_mode("System")  
 ctk.set_default_color_theme("blue")  
@@ -13,6 +13,7 @@ class ActionPanel(ctk.CTkFrame):
         
         self.configure(fg_color="transparent")
         
+        # --- DISEÑO DE JUAN (INTACTO) ---
         self.title_label = ctk.CTkLabel(
             self, text="Auditar Calificación", 
             font=ctk.CTkFont(size=18, weight="bold")
@@ -30,7 +31,7 @@ class ActionPanel(ctk.CTkFrame):
         self.subject_menu.pack(fill="x", pady=10)
         
         self.grade_entry = ctk.CTkEntry(
-            self, placeholder_text="Nota Final (ej: 9.5)", height=40
+            self, placeholder_text="Nota Final (ej: 14)", height=40
         )
         self.grade_entry.pack(fill="x", pady=10)
         
@@ -43,19 +44,26 @@ class ActionPanel(ctk.CTkFrame):
         self.submit_btn.pack(fill="x", pady=20)
 
     def _on_submit(self):
+
         student = self.student_entry.get()
-        grade = self.grade_entry.get()
+        grade = self.grade_entry.get()  
         subject = self.subject_menu.get()
         
-        if not student or not grade:
+        if not student:
             self.student_entry.configure(border_color="#e74c3c")
             return
-            
         self.student_entry.configure(border_color=["#979da2", "#565b5e"])
+        
+        es_valida, mensaje_error = validar_nota(grade)
+        
+        if not es_valida:
+            print(f"❌ [FRONTEND - BLOQUEADO]: {mensaje_error}")
+            self.grade_entry.configure(border_color="#e74c3c")
+            return
+        
         self.grade_entry.configure(border_color=["#979da2", "#565b5e"])
         
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-        
         mock_hash = "0x" + str(hex(hash(student + grade)))[2:10] + "...done"
         
         self.master.logs_table.add_log_entry(
@@ -64,31 +72,20 @@ class ActionPanel(ctk.CTkFrame):
             mock_hash
         )
         
-        try:
-            nota_final = float(grade)
-            usuario_actual = "Barbara_Admin"  # Usuario temporal para pruebas
-            
-            # Llamamos a la función para que escriba en el archivo .log
-            registrar_auditoria(
-                usuario=usuario_actual,
-                estudiante=student,
-                materia=subject,
-                nota_nueva=nota_final,
-                nota_anterior=0.0
-            )
-        except ValueError:
-            print("❌ Error: La nota introducida no es un número válido.")
-            self.grade_entry.configure(border_color="#e74c3c") # Pone el campo nota en rojo
-            return
-        # ===================================================
+        registrar_auditoria(
+            usuario="Barbara_Admin",  
+            estudiante=student,
+            materia=subject,
+            nota_nueva_str=grade,
+            nota_anterior=0
+        )
        
-        # Se limpian las cajas de texto al final de todo
         self.student_entry.delete(0, 'end')
         self.grade_entry.delete(0, 'end')
 
 
 class AuditLogsTable(ctk.CTkScrollableFrame):
-    """Componente scrollable optimizado para mostrar el historial inmutable."""
+    """Componente scrollable optimizado de Juan para mostrar el historial."""
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         
@@ -103,8 +100,15 @@ class AuditLogsTable(ctk.CTkScrollableFrame):
             lbl = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(size=12, weight="bold"), text_color="gray")
             lbl.grid(row=0, column=col, padx=10, pady=5, sticky="w")
 
+        try:
+            registros_reales = obtener_historial_auditoria()
+            for fecha, accion in registros_reales:
+                self.add_log_entry(fecha, accion, "0xRealLog")
+        except Exception as e:
+            print(f"Aviso al iniciar tabla: {e}")
+
     def add_log_entry(self, timestamp: str, action: str, crypto_hash: str):
-        """Método público para insertar filas en tiempo real."""
+        """Método de Juan para insertar filas en tiempo real."""
         data = [timestamp, action, crypto_hash]
         
         for col_idx, text in enumerate(data):
@@ -118,7 +122,7 @@ class AuditLogsTable(ctk.CTkScrollableFrame):
 
 
 class DashboardFrame(ctk.CTkFrame):
-    """Contenedor principal del Dashboard."""
+    """Contenedor principal del Dashboard de Juan."""
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         
@@ -134,7 +138,7 @@ class DashboardFrame(ctk.CTkFrame):
 
 
 class AuditGradesApp(ctk.CTk):
-    """Ventana principal de la aplicación AUDIT-GRADES PRO."""
+    """Ventana principal de la aplicación."""
     def __init__(self):
         super().__init__()
         
