@@ -132,3 +132,4 @@ class AuditGradesApp(ctk.CTk):
 if __name__ == "__main__":
     app = AuditGradesApp() 
     app.mainloop()
+    prueba
