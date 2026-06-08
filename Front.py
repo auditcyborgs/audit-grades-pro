@@ -1,6 +1,8 @@
 import customtkinter as ctk
 from datetime import datetime
 
+from auditoria import registrar_auditoria
+
 ctk.set_appearance_mode("System")  
 ctk.set_default_color_theme("blue")  
 
