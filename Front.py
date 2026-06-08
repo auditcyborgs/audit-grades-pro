@@ -1,7 +1,6 @@
 import customtkinter as ctk
 from datetime import datetime
 
-# Tu importación del backend se queda aquí arriba fija
 from auditoria import registrar_auditoria
 
 ctk.set_appearance_mode("System")  
@@ -57,23 +56,19 @@ class ActionPanel(ctk.CTkFrame):
         
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
         
-        # Dejamos la lógica del hash de Juan intacta como pediste
         mock_hash = "0x" + str(hex(hash(student + grade)))[2:10] + "...done"
         
-        # Se agrega visualmente a la tabla de Juan con su hash
         self.master.logs_table.add_log_entry(
             current_time, 
             f"Registro Nota: {student} -> {subject}: {grade}", 
             mock_hash
         )
         
-        # === AQUÍ CONECTAMOS TU BACKEND DE AUDITORÍA REAL ===
         try:
-            # Convertimos la nota a número decimal (float)
             nota_final = float(grade)
             usuario_actual = "Barbara_Admin"  # Usuario temporal para pruebas
             
-            # Llamamos a tu función para que escriba en el archivo .log
+            # Llamamos a la función para que escriba en el archivo .log
             registrar_auditoria(
                 usuario=usuario_actual,
                 estudiante=student,
