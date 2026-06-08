@@ -1,9 +1,7 @@
-import datetime
 import logging
-import os
+import os  # <-- Lo movemos aquí arriba con los demás imports
 
-# Configuramos el log para que guarde un archivo de texto llamado 'auditoria_notas.log'
-# Si el archivo no existe, lo crea automáticamente.
+# Configuramos el log para que guarde en 'auditoria_notas.log'
 logging.basicConfig(
     filename='auditoria_notas.log',
     level=logging.INFO,
@@ -11,19 +9,18 @@ logging.basicConfig(
     encoding='utf-8'
 )
 
-def registrar_auditoria(usuario: str, nota_anterior: float, nota_nueva: float) -> bool:
+def registrar_auditoria(usuario: str, estudiante: str, materia: str, nota_nueva: float, nota_anterior: float = 0.0) -> bool:
     """
-    Registra cambios de notas en un archivo de log persistente.
-    Retorna True si el registro fue exitoso.
+    Registra los cambios e ingresos de notas en el archivo log persistente.
     """
     try:
-        # Creamos el mensaje de forma estructurada
-        mensaje = f"Usuario: {usuario} | Cambio: {nota_anterior} -> {nota_nueva}"
+        # Mensaje estructurado con toda la información
+        mensaje = f"Profesor: {usuario} | Estudiante: {estudiante} | Materia: {materia} | Nota: {nota_anterior} -> {nota_nueva}"
         
-        # Guardamos en el archivo log
+        # Guardamos en el archivo de texto log
         logging.info(mensaje)
         
-        # Feedback visual para la consola
+        # Feedback en la consola
         print(f"✅ [AUDITORIA EXITOSA]: {mensaje}")
         return True
     
@@ -31,6 +28,18 @@ def registrar_auditoria(usuario: str, nota_anterior: float, nota_nueva: float) -
         print(f"❌ [ERROR DE AUDITORIA]: {e}")
         return False
 
-# Ejemplo de uso:
-if __name__ == "__main__":
-    registrar_auditoria("Barbara", 12.0, 18.5)
+
+def obtener_historial_auditoria():
+    """Lee el archivo log y devuelve una lista con los registros reales."""
+    historial = []
+    if os.path.exists('auditoria_notas.log'):
+        with open('auditoria_notas.log', 'r', encoding='utf-8') as archivo:
+            for linea in archivo:
+                # Filtramos para asegurarnos de que sea una línea de auditoría
+                if "[AUDITORIA]" in linea:
+                    # Separamos la fecha del mensaje
+                    partes = linea.split(" - [AUDITORIA] - ")
+                    fecha_hora = partes[0]
+                    detalles = partes[1].strip()
+                    historial.append((fecha_hora, detalles))
+    return historial
