@@ -1,76 +1,65 @@
-import logging
 import os
+import sqlite3
+from datetime import datetime
 
-logging.basicConfig(
-    filename='auditoria_notas.log',
-    level=logging.INFO,
-    format='%(asctime)s - [AUDITORIA] - %(message)s',
-    encoding='utf-8'
-)
+# Ruta exacta a la base de datos según tu estructura de carpetas
+DB_PATH = os.path.join("bd", "sistema_de_notas.db")
 
-def validar_nota(nota_ingresada: str) -> tuple[bool, str]:
+def validar_nota(nota_str):
+    """Valida que la nota sea un número entero entre 0 y 20."""
+    if not nota_str.strip():
+        return False, "La nota no puede estar vacías."
+    
+    if not nota_str.isdigit():
+        return False, "La nota debe ser un número entero (sin letras ni decimales)."
+    
+    nota = int(nota_str)
+    if nota < 0 or nota > 20:
+        return False, "La nota debe estar en el rango de 0 a 20."
+    
+    return True, ""
+
+
+def registrar_auditoria(usuario, estudiante, materia, nota_nueva_str, nota_anterior=0):
     """
-    Valida que la nota ingresada cumpla estrictamente con las reglas:
-    1. No puede estar vacía.
-    2. No puede tener decimales (ni puntos ni comas).
-    3. No puede contener letras ni símbolos.
-    4. Debe estar en el rango entero de 0 a 20 (bloquea negativos).
+    Inserta la nota y los datos de auditoría directamente en el archivo .db de SQLite
+    y guarda un respaldo de seguridad en el archivo de texto .log.
     """
-    if not nota_ingresada or not nota_ingresada.strip():
-        return False, "Error: El campo de la nota no puede estar vacío."
-    
-    nota_str = nota_ingresada.strip()
-    
-    if "." in nota_str or "," in nota_str:
-        return False, "Error: No se permiten números decimales. Ingrese un número entero."
-    
     try:
-        nota = int(nota_str)
+        nota_nueva = float(nota_nueva_str)
     except ValueError:
-        return False, f"Error: '{nota_ingresada}' contiene letras o símbolos no válidos."
-    
-    if not (0 <= nota <= 20):
-        return False, f"Error: La nota {nota} está fuera del rango permitido (0-20)."
-    
-    return True, "Nota válida"
-
-
-def registrar_auditoria(usuario: str, estudiante: str, materia: str, nota_nueva_str: str, nota_anterior: int = 0) -> bool:
-    """
-    Aplica la doble capa de validación en el backend y, si todo es correcto,
-    escribe de forma persistente el registro de auditoría en el archivo log.
-    """
-    es_valida, mensaje = validar_nota(nota_nueva_str)
-    if not es_valida:
-        print(f"❌ [FALLO DE AUDITORÍA - BLOQUEADO POR SEGURIDAD]: {mensaje}")
-        return False
+        print("❌ Error: La calificación no es un número válido.")
+        return
 
     try:
-        nota_final = int(nota_nueva_str.strip())
-        # Aquí corregimos el error: ahora dice {estudiante} correctamente
-        mensaje_log = f"Profesor: {usuario} | Estudiante: {estudiante} | Materia: {materia} | Nota: {nota_anterior} -> {nota_final}"
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO notas (cedula_estudiante, materia, calificacion, comentario)
+            VALUES (?, ?, ?, ?)
+        ''', (estudiante, materia, nota_nueva, "Registrado desde Panel de Seguridad"))
+
+        cursor.execute('''
+            INSERT INTO auditoria_notas (usuario, nota_anterior, nota_nueva)
+            VALUES (?, ?, ?)
+        ''', (usuario, nota_anterior, nota_nueva))
+
+       
+        conn.commit()
+        conn.close()
+        print("💾 [SQLITE]: Datos guardados con éxito en 'notas' y 'auditoria_notas'.")
+
+    except sqlite3.Error as e:
+        print(f"❌ [SQLITE ERROR]: Falló la inserción en la base de datos: {e}")
+
+    try:
+        fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        mensaje_log = f"{fecha_hora} - [AUDITORIA] - Profesor: {usuario} | Estudiante: {estudiante} | Materia: {materia} | Nota: {nota_nueva}\n"
         
-        logging.info(mensaje_log)
-        print(f"✅ [AUDITORIA EXITOSA]: {mensaje_log}")
-        return True
-    
+        with open("auditoria_notas.log", "a", encoding="utf-8") as archivo:
+            archivo.write(mensaje_log)
+        print("📝 [LOG]: Respaldo guardado en auditoria_notas.log.")
+        
     except Exception as e:
-        print(f"❌ [ERROR CRÍTICO DE AUDITORIA]: {e}")
-        return False
-
-
-def obtener_historial_auditoria():
-    """
-    Lee el archivo 'auditoria_notas.log' línea por línea, extrae los datos
-    reales guardados y los devuelve en una lista para cargar la vista del Front.
-    """
-    historial = []
-    if os.path.exists('auditoria_notas.log'):
-        with open('auditoria_notas.log', 'r', encoding='utf-8') as archivo:
-            for linea in archivo:
-                if "[AUDITORIA]" in linea:
-                    partes = linea.split(" - [AUDITORIA] - ")
-                    fecha_hora = partes[0]
-                    detalles = partes[1].strip()
-                    historial.append((fecha_hora, detalles))
-    return historial
+        print(f"❌ [LOG ERROR]: No se pudo escribir en el archivo log: {e}")
