@@ -26,99 +26,141 @@ def obtener_codigo_materia(cursor, nombre_materia):
     if res:
         return res[0]
     
-    # Código por defecto por si la materia no está inicializada en la BD de Juan
-    codigo_nuevo = nombre_materia[:3].upper() + "-01"
+    # Crear nueva materia si no existe
+    codigo_nuevo = nombre_materia[:3].upper() + "-" + str(abs(hash(nombre_materia)) % 100).zfill(2)
     try:
-        cursor.execute("INSERT INTO materias (codigo_materia, nombre_materia) VALUES (?, ?);", (codigo_nuevo, nombre_materia))
+        cursor.execute('''
+            INSERT INTO materias (codigo_materia, nombre_materia, descripcion, creditos)
+            VALUES (?, ?, ?, ?)
+        ''', (codigo_nuevo, nombre_materia, f"Materia: {nombre_materia}", 3))
+        return codigo_nuevo
     except sqlite3.Error:
-        pass
-    return codigo_nuevo
+        return "GEN-01"
 
 def obtener_todos_los_registros():
-    """Trae de forma segura los datos para llenar la tabla del Front sin romperse."""
+    """Trae SOLO los registros de la base de datos (sin duplicar con memoria)"""
     try:
-        # Asegurar que la carpeta bd exista
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Intentamos consultar las notas registradas cruzándolas con las materias de Juan
         cursor.execute('''
             SELECT 
-                DATETIME('now', 'localtime') as fecha,
-                'Barbara_Admin' as usuario,
-                n.cedula_estudiante,
+                n.fecha_registro as fecha,
+                COALESCE(a.usuario, 'Sistema') as usuario,
+                e.nombre || ' ' || e.apellido as estudiante_nombre,
+                e.cedula,
                 m.nombre_materia,
-                n.calificacion,
-                '0x' || LOWER(HEX(RANDOMBLOB(4))) || "...done" as hash_firma
+                n.nota
             FROM notas n
-            JOIN materias m ON n.codigo_materia = m.codigo_materia
+            LEFT JOIN estudiante e ON n.cedula = e.cedula
+            LEFT JOIN materias m ON n.codigo_materia = m.codigo_materia
+            LEFT JOIN auditoria_notas a ON a.nota_nueva = n.nota
+            ORDER BY n.fecha_registro DESC
         ''')
         registros = cursor.fetchall()
         conn.close()
-        return registros
-    except sqlite3.OperationalError:
-        # Si las tablas no existen todavía en la BD, devolvemos lista vacía para que el Front abra limpio
+        
+        if not registros:
+            return []
+        
+        registros_formateados = []
+        for r in registros:
+            fecha = r[0] if r[0] else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            usuario = r[1] if r[1] else "Sistema"
+            estudiante_completo = f"{r[2]} [{r[3]}]" if r[2] else f"Estudiante {r[3]}"
+            materia = r[4] if r[4] else "General"
+            nota = str(int(r[5]) if r[5] and float(r[5]).is_integer() else r[5])
+            registros_formateados.append((fecha, usuario, estudiante_completo, materia, nota))
+        
+        return registros_formateados
+        
+    except sqlite3.OperationalError as e:
+        print(f"⚠️ Error de tabla: {e}")
         return []
     except Exception as e:
         print(f"⚠️ Error inesperado al leer la BD: {e}")
         return []
 
 def registrar_auditoria(usuario, estudiante, materia, nota_nueva_str, nota_anterior=0):
-    """Inserta la nota adaptada a la estructura relacional de Juan."""
+    """Inserta la nota SOLO en la base de datos (sin memoria)"""
     try:
         nota_nueva = float(nota_nueva_str)
     except ValueError:
         print("❌ Error: La calificación no es un número válido.")
-        return
+        return False
 
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
 
-        # Evitar errores de llave foránea asegurando que existan el usuario y el estudiante
-        cursor.execute("INSERT OR IGNORE INTO usuarios (cedula, contrasena, rol) VALUES (?, '1234', 'estudiante');", (estudiante,))
-        cursor.execute("INSERT OR IGNORE INTO estudiantes (cedula_estudiante, nombre_completo) VALUES (?, ?);", (estudiante, f"Estudiante {estudiante}"))
+        # Extraer cédula del formato "Nombre [12345678]"
+        cedula_num = estudiante
+        nombre_estudiante = estudiante
+        apellido_estudiante = ""
+        if "[" in estudiante and "]" in estudiante:
+            try:
+                partes = estudiante.split(" [")
+                nombre_completo = partes[0].strip()
+                cedula_num = partes[1].replace("]", "")
+                
+                if " " in nombre_completo:
+                    partes_nombre = nombre_completo.split(" ", 1)
+                    nombre_estudiante = partes_nombre[0]
+                    apellido_estudiante = partes_nombre[1] if len(partes_nombre) > 1 else ""
+                else:
+                    nombre_estudiante = nombre_completo
+            except:
+                pass
+        
+        # Verificar si el estudiante existe
+        cursor.execute("SELECT cedula FROM estudiante WHERE cedula = ?", (cedula_num,))
+        estudiante_existente = cursor.fetchone()
+        
+        if not estudiante_existente:
+            # Insertar nuevo estudiante con correo único
+            correo_unico = f"{cedula_num}@estudiante.local"
+            cursor.execute('''
+                INSERT INTO estudiante (cedula, nombre, apellido, edad, correo, fecha_registro)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (cedula_num, nombre_estudiante, apellido_estudiante, 0, correo_unico, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
-        # Convertir nombre de materia a su código correlativo
+        # Obtener código de materia
         codigo_mat = obtener_codigo_materia(cursor, materia)
 
-        # Guardar en la tabla de notas relacional
+        # Guardar en la tabla notas
         cursor.execute('''
-            INSERT INTO notas (cedula_estudiante, codigo_materia, calificacion, comentario)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(cedula_estudiante, codigo_materia) 
-            DO UPDATE SET calificacion = excluded.calificacion, comentario = excluded.comentario;
-        ''', (estudiante, codigo_mat, nota_nueva, "Registrado desde Panel de Seguridad"))
+            INSERT INTO notas (cedula, estudiante, codigo_materia, nota, fecha_registro)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (cedula_num, nombre_estudiante, codigo_mat, nota_nueva, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
-        # Guardar respaldo histórico en auditoría si la tabla existe
-        try:
-            cursor.execute('''
-                INSERT INTO auditoria_notas (usuario, nota_anterior, nota_nueva)
-                VALUES (?, ?, ?)
-            ''', (usuario, nota_anterior, nota_nueva))
-        except sqlite3.OperationalError:
-            pass # Si Juan no creó esta tabla específica, no trancamos el registro principal
+        # Guardar en auditoría
+        cursor.execute('''
+            INSERT INTO auditoria_notas (usuario, nota_anterior, nota_nueva, fecha_cambio)
+            VALUES (?, ?, ?, ?)
+        ''', (usuario, nota_anterior, nota_nueva, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
         conn.commit()
         conn.close()
-        print("💾 [SQLITE]: Datos guardados con éxito en la estructura relacional.")
+        print(f"💾 Nota {nota_nueva} guardada para {nombre_estudiante} en {materia}")
+        
+        # Log plano de respaldo
+        try:
+            fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open("auditoria_notas.log", "a", encoding="utf-8") as archivo:
+                archivo.write(f"{fecha_hora} - [REGISTRO] - {usuario} | {nombre_estudiante} | {cedula_num} | {materia} | {nota_nueva}\n")
+        except:
+            pass
+        
+        return True
 
     except sqlite3.Error as e:
-        print(f"❌ [SQLITE ERROR]: Falló la inserción: {e}")
-
-    # Archivo LOG plano de respaldo (tu salvavidas inmutable)
-    try:
-        fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        mensaje_log = f"{fecha_hora} - [AUDITORIA] - Profesor: {usuario} | Estudiante: {estudiante} | Materia: {materia} | Nota: {nota_nueva}\n"
-        with open("auditoria_notas.log", "a", encoding="utf-8") as archivo:
-            archivo.write(mensaje_log)
-    except Exception as e:
-        print(f"❌ [LOG ERROR]: {e}")
+        print(f"❌ Error SQL: {e}")
+        return False
 
 def modificar_auditoria(usuario, estudiante, materia, nota_nueva_str):
-    """Modifica una nota existente respetando las llaves foráneas."""
+    """Modifica una nota existente"""
     es_valida, mensaje_error = validar_nota(nota_nueva_str)
     if not es_valida:
         return False, mensaje_error
@@ -130,40 +172,100 @@ def modificar_auditoria(usuario, estudiante, materia, nota_nueva_str):
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
 
+        cedula_num = estudiante
+        nombre_estudiante = estudiante
+        if "[" in estudiante and "]" in estudiante:
+            try:
+                nombre_estudiante = estudiante.split(" [")[0]
+                cedula_num = estudiante.split("[")[1].replace("]", "")
+            except:
+                pass
+
         codigo_mat = obtener_codigo_materia(cursor, materia)
 
-        # Verificar si la nota ya existe para poder modificarla
+        # Obtener nota anterior
         cursor.execute('''
-            SELECT calificacion FROM notas 
-            WHERE cedula_estudiante = ? AND codigo_materia = ?
-        ''', (estudiante, codigo_mat))
+            SELECT nota FROM notas 
+            WHERE cedula = ? AND codigo_materia = ?
+            ORDER BY fecha_registro DESC LIMIT 1
+        ''', (cedula_num, codigo_mat))
         resultado = cursor.fetchone()
 
         if resultado is None:
             conn.close()
-            return False, f"El alumno {estudiante} no tiene notas en {materia} para modificar."
+            return False, f"No hay nota de {nombre_estudiante} en {materia}"
 
         nota_anterior = resultado[0]
 
-        # Hacer el UPDATE real en la BD de Juan
+        # Insertar nueva nota (mantiene historial)
         cursor.execute('''
-            UPDATE notas 
-            SET calificacion = ?, comentario = ?
-            WHERE cedula_estudiante = ? AND codigo_materia = ?
-        ''', (nota_nueva, "Modificado desde Panel de Seguridad", estudiante, codigo_mat))
+            INSERT INTO notas (cedula, estudiante, codigo_materia, nota, fecha_registro)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (cedula_num, nombre_estudiante, codigo_mat, nota_nueva, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
-        # Registrar el movimiento en la auditoría si es posible
-        try:
-            cursor.execute('''
-                INSERT INTO auditoria_notas (usuario, nota_anterior, nota_nueva)
-                VALUES (?, ?, ?)
-            ''', (usuario, nota_anterior, nota_nueva))
-        except sqlite3.OperationalError:
-            pass
+        # Registrar en auditoría
+        cursor.execute('''
+            INSERT INTO auditoria_notas (usuario, nota_anterior, nota_nueva, fecha_cambio)
+            VALUES (?, ?, ?, ?)
+        ''', (usuario, nota_anterior, nota_nueva, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
         conn.commit()
         conn.close()
-        return True, f"Modificado con éxito: {nota_anterior} -> {nota_nueva}"
+        
+        try:
+            with open("auditoria_notas.log", "a", encoding="utf-8") as archivo:
+                archivo.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - [MODIFICACIÓN] - {usuario} | {nombre_estudiante} | {nota_anterior} -> {nota_nueva}\n")
+        except:
+            pass
+        
+        return True, f"Modificado: {nota_anterior} -> {nota_nueva}"
 
     except sqlite3.Error as e:
         return False, f"Error SQL: {e}"
+
+def eliminar_auditoria(usuario, estudiante, materia):
+    """Elimina las notas de un estudiante en una materia"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cedula_num = estudiante
+        nombre_estudiante = estudiante
+        if "[" in estudiante and "]" in estudiante:
+            try:
+                nombre_estudiante = estudiante.split(" [")[0]
+                cedula_num = estudiante.split("[")[1].replace("]", "")
+            except:
+                pass
+
+        codigo_mat = obtener_codigo_materia(cursor, materia)
+
+        # Obtener última nota
+        cursor.execute('''
+            SELECT nota FROM notas 
+            WHERE cedula = ? AND codigo_materia = ?
+            ORDER BY fecha_registro DESC LIMIT 1
+        ''', (cedula_num, codigo_mat))
+        ultima_nota = cursor.fetchone()
+        
+        if ultima_nota:
+            cursor.execute('''
+                INSERT INTO auditoria_notas (usuario, nota_anterior, nota_nueva, fecha_cambio)
+                VALUES (?, ?, ?, ?)
+            ''', (usuario, ultima_nota[0], -1, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+        # Eliminar notas
+        cursor.execute('DELETE FROM notas WHERE cedula = ? AND codigo_materia = ?', (cedula_num, codigo_mat))
+        
+        conn.commit()
+        conn.close()
+        
+        try:
+            with open("auditoria_notas.log", "a", encoding="utf-8") as archivo:
+                archivo.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - [ELIMINACIÓN] - {usuario} | {nombre_estudiante} | {materia}\n")
+        except:
+            pass
+        
+        return True, "Eliminado con éxito"
+    except sqlite3.Error as e:
+        return False, f"Error: {e}"
