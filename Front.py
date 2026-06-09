@@ -7,20 +7,23 @@ from datetime import datetime
 MEMORIA_AUDITORIA = []
 
 try:
-    from auditoria import registrar_auditoria, validar_nota, obtener_todos_los_registros, modificar_auditoria
+    from auditoria import (registrar_auditoria, validar_nota, 
+                           obtener_todos_los_registros, modificar_auditoria, 
+                           eliminar_auditoria)
 except Exception as e:
     print(f"⚠️ Modo seguro activado. Los datos operarán 100% en vivo desde la memoria del Front. {e}")
     def registrar_auditoria(*args, **kwargs): pass
     def validar_nota(*args, **kwargs): return True, ""
     def obtener_todos_los_registros(*args, **kwargs): return []
     def modificar_auditoria(*args, **kwargs): return True, ""
+    def eliminar_auditoria(*args, **kwargs): return True, ""
 
 ctk.set_appearance_mode("System")  
 ctk.set_default_color_theme("blue")  
 
 
 class ActionPanel(ctk.CTkFrame):
-    """Formulario lateral libre de datos estáticos y listo para el Login."""
+    """Formulario lateral con opciones de Registro, Actualización y Eliminación."""
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self.configure(fg_color=["#f8f9fa", "#1e222b"], corner_radius=12)
@@ -31,7 +34,7 @@ class ActionPanel(ctk.CTkFrame):
         )
         self.title_label.pack(pady=(15, 10), padx=15, anchor="w")
         
-        # CAMPO DE LOGIN (Limpio para integración)
+        # CAMPO DE LOGIN
         self.user_label = ctk.CTkLabel(self, text="👤 Usuario / Operador:", font=ctk.CTkFont(size=11, weight="bold"))
         self.user_label.pack(padx=15, anchor="w")
         self.user_entry = ctk.CTkEntry(self, height=30, placeholder_text="Escriba usuario (Ej: Wilmary_Control)...")
@@ -53,14 +56,14 @@ class ActionPanel(ctk.CTkFrame):
         self.grade_entry = ctk.CTkEntry(self, placeholder_text="Nota Final", height=38)
         self.grade_entry.pack(fill="x", pady=6, padx=15)
         
-        # ACCIONES
+        # ACCIONES (BOTONES)
         self.submit_btn = ctk.CTkButton(
             self, text="➕ Registrar Calificación", 
             fg_color="#2ecc71", hover_color="#27ae60",
             height=38, font=ctk.CTkFont(weight="bold"),
             command=self._on_submit
         )
-        self.submit_btn.pack(fill="x", pady=(12, 5), padx=15)
+        self.submit_btn.pack(fill="x", pady=(12, 4), padx=15)
 
         self.update_btn = ctk.CTkButton(
             self, text="🔧 Actualizar Registro", 
@@ -68,7 +71,16 @@ class ActionPanel(ctk.CTkFrame):
             height=38, font=ctk.CTkFont(weight="bold"),
             command=self._on_update
         )
-        self.update_btn.pack(fill="x", pady=(5, 15), padx=15)
+        self.update_btn.pack(fill="x", pady=4, padx=15)
+
+        # NUEVO: BOTÓN ELIMINAR
+        self.delete_btn = ctk.CTkButton(
+            self, text="❌ Eliminar Registro", 
+            fg_color="#e74c3c", hover_color="#c0392b",
+            height=38, font=ctk.CTkFont(weight="bold"),
+            command=self._on_delete
+        )
+        self.delete_btn.pack(fill="x", pady=(4, 15), padx=15)
 
     def _reset_borders(self):
         self.student_name_entry.configure(border_color=["#979da2", "#565b5e"])
@@ -77,21 +89,18 @@ class ActionPanel(ctk.CTkFrame):
 
     def _on_submit(self):
         self._reset_borders()
-        
         usuario_actual = self.user_entry.get().strip() or "Anonimo_Log"
         nombre = self.student_name_entry.get().strip()
         cedula = self.student_entry.get().strip()
         grade = self.grade_entry.get().strip()  
         subject = self.subject_menu.get()
         
-        # Escudo contra campos vacíos
         if not nombre or not cedula or not grade:
             if not nombre: self.student_name_entry.configure(border_color="#e74c3c")
             if not cedula: self.student_entry.configure(border_color="#e74c3c")
             if not grade: self.grade_entry.configure(border_color="#e74c3c")
             return
         
-        # Validar consistencia numérica
         es_valida, _ = validar_nota(grade)
         if not es_valida:
             self.grade_entry.configure(border_color="#e74c3c")
@@ -100,28 +109,20 @@ class ActionPanel(ctk.CTkFrame):
         fecha_ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         identificador_completo = f"{nombre} [{cedula}]"
         
-        # Inyección inmediata en la memoria compartida
         MEMORIA_AUDITORIA.append((fecha_ahora, usuario_actual, identificador_completo, subject, grade))
         
         try:
-            registrar_auditoria(
-                usuario=usuario_actual,  
-                estudiante=identificador_completo,
-                materia=subject,
-                nota_nueva_str=grade,
-                nota_anterior=0
-            )
+            registrar_auditoria(usuario=usuario_actual, estudiante=identificador_completo, materia=subject, nota_nueva_str=grade, nota_anterior=0)
         except Exception as e:
             print(f"⚠️ Alerta Base de Datos: {e}")
         
-        # Forzar actualización total de las pestañas
         self.winfo_toplevel().refresh_all_views()
-            
         self.student_name_entry.delete(0, 'end')
         self.student_entry.delete(0, 'end')
         self.grade_entry.delete(0, 'end')
 
     def _on_update(self):
+        self._reset_borders()
         usuario_actual = self.user_entry.get().strip() or "Anonimo_Log"
         nombre = self.student_name_entry.get().strip()
         cedula = self.student_entry.get().strip()
@@ -134,50 +135,70 @@ class ActionPanel(ctk.CTkFrame):
             return
         
         identificador_completo = f"{nombre} [{cedula}]" if nombre else cedula
-        
-        # Modificación directa en memoria viva
         modificado_en_memoria = False
+        
         for i, r in enumerate(MEMORIA_AUDITORIA):
-            if f"[{cedula}]" in r[2] or r[2] == cedula:
+            if (f"[{cedula}]" in r[2] or r[2] == cedula) and r[3] == subject:
                 fecha_ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                # Mantener el nombre anterior si no se especificó uno nuevo
                 nombre_final = identificador_completo if nombre else r[2]
                 MEMORIA_AUDITORIA[i] = (fecha_ahora, usuario_actual, nombre_final, subject, grade)
                 modificado_en_memoria = True
         
-        # Si no existía en memoria por sesión, lo agregamos como un cambio directo
         if not modificado_en_memoria:
             fecha_ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             MEMORIA_AUDITORIA.append((fecha_ahora, usuario_actual, identificador_completo, subject, grade))
 
         try:
-            modificar_auditoria(
-                usuario=usuario_actual,
-                estudiante=identificador_completo,
-                materia=subject,
-                nota_nueva_str=grade
-            )
+            modificar_auditoria(usuario=usuario_actual, estudiante=identificador_completo, materia=subject, nota_nueva_str=grade)
         except Exception:
             pass
             
         self.winfo_toplevel().refresh_all_views()
+        self.student_name_entry.delete(0, 'end')
+        self.student_entry.delete(0, 'end')
+        self.grade_entry.delete(0, 'end')
+
+    # NUEVO: LÓGICA DE ELIMINACIÓN REAL
+    def _on_delete(self):
+        self._reset_borders()
+        usuario_actual = self.user_entry.get().strip() or "Anonimo_Log"
+        cedula = self.student_entry.get().strip()
+        subject = self.subject_menu.get()
+        
+        if not cedula:
+            self.student_entry.configure(border_color="#e74c3c")
+            return
+        
+        global MEMORIA_AUDITORIA
+        # Filtrar la memoria: se quedan todos MENOS el que coincida con la cédula y la materia seleccionada
+        MEMORIA_AUDITORIA = [
+            r for r in MEMORIA_AUDITORIA 
+            if not ((f"[{cedula}]" in r[2] or r[2] == cedula) and r[3] == subject)
+        ]
+        
+        try:
+            # Notificar al backend de Juan/Daniel para que impacte la BD
+            eliminar_auditoria(usuario=usuario_actual, estudiante=cedula, materia=subject)
+        except Exception as e:
+            print(f"⚠️ Error al eliminar en BD: {e}")
             
+        self.winfo_toplevel().refresh_all_views()
+        
+        # Limpiar casillas
         self.student_name_entry.delete(0, 'end')
         self.student_entry.delete(0, 'end')
         self.grade_entry.delete(0, 'end')
 
 
 class AuditLogsTable(ctk.CTkScrollableFrame):
-    """MÓDULO: Historial sin Hashes y con desglose real de nombres y cédulas."""
+    """Historial sin Hashes y con desglose real de nombres y cédulas."""
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
-        
-        self.grid_columnconfigure(0, weight=2)  # Fecha/Hora
-        self.grid_columnconfigure(1, weight=3)  # Nombre Estudiante
-        self.grid_columnconfigure(2, weight=2)  # CI
-        self.grid_columnconfigure(3, weight=2)  # Asignatura
-        self.grid_columnconfigure(4, weight=1)  # Nota
-        
+        self.grid_columnconfigure(0, weight=2)  
+        self.grid_columnconfigure(1, weight=3)  
+        self.grid_columnconfigure(2, weight=2)  
+        self.grid_columnconfigure(3, weight=2)  
+        self.grid_columnconfigure(4, weight=1)  
         self.current_row = 1
         self.filas = []  
         self.construir_cabeceras()
@@ -198,58 +219,47 @@ class AuditLogsTable(ctk.CTkScrollableFrame):
     def add_log_entry(self, timestamp: str, name: str, ci: str, subject: str, grade: str):
         fila_widgets = []
         data = [timestamp, name, ci, subject, grade]
-        
         for col_idx, text in enumerate(data):
             color = "#2ecc71" if col_idx == 4 and float(text or 0) >= 10 else ["#2c3e50", "#ffffff"]
             lbl = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(size=12), text_color=color, anchor="w")
             lbl.grid(row=self.current_row, column=col_idx, padx=12, pady=6, sticky="w")
             fila_widgets.append(lbl)
-            
         self.filas.append(fila_widgets)
         self.current_row += 1
     
     def cargar_registros_desde_bd(self):
         self.limpiar_tabla()
         registros_totales = []
-        
-        # Cargar de la BD de Juan si responde
         try:
             db_regs = obtener_todos_los_registros()
             if db_regs:
                 for r in db_regs:
-                    if len(r) >= 5:
-                        registros_totales.append((r[0], r[1], r[2], r[3], r[4]))
+                    if len(r) >= 5: registros_totales.append((r[0], r[1], r[2], r[3], r[4]))
         except Exception:
             pass
             
-        # Unificar con memoria en tiempo real asegurando no duplicar marcas exactas
         for mem_r in MEMORIA_AUDITORIA:
-            if mem_r not in registros_totales:
-                registros_totales.append(mem_r)
+            if mem_r not in registros_totales: registros_totales.append(mem_r)
                     
-        if not registros_totales:
-            return
+        if not registros_totales: return
             
         for r in registros_totales:
             fecha, _, estudiante_raw, materia, nota = r[0], r[1], r[2], r[3], r[4]
-            
             nombre_estudiante = estudiante_raw
             ci_estudiante = "N/A"
-            
             if "[" in estudiante_raw and "]" in estudiante_raw:
                 try:
                     parts = estudiante_raw.split(" [")
                     nombre_estudiante = parts[0]
                     ci_estudiante = parts[1].replace("]", "")
-                except Exception:
-                    pass
+                except Exception: pass
             
             nota_ok = str(int(nota) if hasattr(nota, 'is_integer') and nota.is_integer() else nota)
             self.add_log_entry(fecha, nombre_estudiante, ci_estudiante, materia, nota_ok)
 
 
 class StudentInfoModule(ctk.CTkFrame):
-    """MÓDULO: Fichas de Alumnos 100% dinámicas (Sin ejemplos estáticos)."""
+    """Fichas de Alumnos 100% dinámicas."""
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self.configure(fg_color="transparent")
@@ -269,8 +279,7 @@ class StudentInfoModule(ctk.CTkFrame):
         self.actualizar_alumnos_dinamicos()
 
     def actualizar_alumnos_dinamicos(self):
-        for w in self.widgets_dinamicos:
-            w.destroy()
+        for w in self.widgets_dinamicos: w.destroy()
         self.widgets_dinamicos.clear()
         
         headers = ["Nombre del Estudiante", "Cédula (CI)", "Última Materia Evaluada", "Estado de Carga"]
@@ -280,8 +289,6 @@ class StudentInfoModule(ctk.CTkFrame):
             self.widgets_dinamicos.append(lbl)
             
         alumnos_procesados = {}
-        
-        # Mapear lo que el usuario ha ingresado activamente
         for r in MEMORIA_AUDITORIA:
             estudiante_raw = r[2]
             materia = r[3]
@@ -297,11 +304,7 @@ class StudentInfoModule(ctk.CTkFrame):
                 alumnos_procesados[estudiante_raw] = (estudiante_raw, materia, "Sincronizado")
 
         if not alumnos_procesados:
-            lbl_empty = ctk.CTkLabel(
-                self.scroll_info, 
-                text="No hay alumnos registrados en este lapso. Use el Panel de Control para agregar uno.",
-                font=ctk.CTkFont(size=12, slant="italic"), text_color="gray"
-            )
+            lbl_empty = ctk.CTkLabel(self.scroll_info, text="No hay alumnos registrados en este lapso. Use el Panel de Control para agregar uno.", font=ctk.CTkFont(size=12, slant="italic"), text_color="gray")
             lbl_empty.grid(row=1, column=0, columnspan=4, pady=30)
             self.widgets_dinamicos.append(lbl_empty)
             return
@@ -315,7 +318,7 @@ class StudentInfoModule(ctk.CTkFrame):
 
 
 class SingleStudentSearchModule(ctk.CTkFrame):
-    """MÓDULO: Búsqueda Individual conectada a la memoria activa."""
+    """Búsqueda Individual conectada a la memoria activa."""
     def __init__(self, master, action_panel_ref, **kwargs):
         super().__init__(master, **kwargs)
         self.configure(fg_color="transparent")
@@ -333,23 +336,16 @@ class SingleStudentSearchModule(ctk.CTkFrame):
         self.result_box = ctk.CTkFrame(self, fg_color=["#ffffff", "#24292e"], corner_radius=8)
         self.result_box.pack(fill="both", expand=True, padx=2, pady=2)
         
-        self.info_label = ctk.CTkLabel(
-            self.result_box, 
-            text="Introduce una cédula arriba para desplegar historial individual e interactuar.",
-            font=ctk.CTkFont(size=12, slant="italic"), text_color="gray"
-        )
+        self.info_label = ctk.CTkLabel(self.result_box, text="Introduce una cédula arriba para desplegar historial individual e interactuar.", font=ctk.CTkFont(size=12, slant="italic"), text_color="gray")
         self.info_label.pack(expand=True)
 
     def _buscar_estudiante(self):
         cedula_target = self.search_entry.get().strip()
-        if not cedula_target:
-            return
+        if not cedula_target: return
             
-        for w in self.result_box.winfo_children():
-            w.destroy()
+        for w in self.result_box.winfo_children(): w.destroy()
             
         coincidencias = [r for r in MEMORIA_AUDITORIA if len(r) >= 3 and cedula_target in r[2]]
-        
         if not coincidencias:
             lbl = ctk.CTkLabel(self.result_box, text="❌ No se encontraron notas cargadas para esa cédula.", text_color="#e74c3c")
             lbl.pack(pady=20)
@@ -362,7 +358,6 @@ class SingleStudentSearchModule(ctk.CTkFrame):
             estudiante_raw = r[2]
             materia = r[3]
             nota = r[4]
-            
             nombre_estudiante = estudiante_raw.split(" [")[0] if "[" in estudiante_raw else estudiante_raw
             
             row_frame = ctk.CTkFrame(self.result_box, fg_color="transparent")
@@ -375,7 +370,7 @@ class SingleStudentSearchModule(ctk.CTkFrame):
             lbl_nota.pack(side="left", padx=5)
             
             btn_edit = ctk.CTkButton(
-                row_frame, text="✏️ Editar", width=60, height=22,
+                row_frame, text="✏️ Seleccionar", width=80, height=22,
                 fg_color="#34495e", hover_color="#e67e22",
                 command=lambda m=materia, c=cedula_target, n=nota, nom=nombre_estudiante: self._cargar_en_formulario(c, nom, m, n)
             )
@@ -392,11 +387,9 @@ class SingleStudentSearchModule(ctk.CTkFrame):
 
 
 class TeacherDashboard(ctk.CTkFrame):
-    """Contenedor General de la Vista del Profesor."""
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self.configure(fg_color="transparent")
-        
         self.grid_columnconfigure(0, weight=1)   
         self.grid_columnconfigure(1, weight=3)   
         self.grid_rowconfigure(0, weight=1)
@@ -422,24 +415,19 @@ class TeacherDashboard(ctk.CTkFrame):
 
 
 class AuditGradesApp(ctk.CTk):
-    """Ventana raíz del sistema."""
     def __init__(self):
         super().__init__()
-        
         self.title("SISTEMA DE GESTIÓN ACADÉMICA E INMUTABILIDAD DE NOTAS")
         self.geometry("1200x680") 
         self.minsize(1000, 580)
-        
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
         
         self.main_dashboard = TeacherDashboard(self)
         self.main_dashboard.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
-        
         self.after(300, self.refresh_all_views)
     
     def refresh_all_views(self):
-        """Disparador maestro de sincronización de vistas."""
         try:
             self.main_dashboard.logs_tab.cargar_registros_desde_bd()
             self.main_dashboard.info_tab.actualizar_alumnos_dinamicos()
