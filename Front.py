@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from datetime import datetime
 
-from auditoria import registrar_auditoria, validar_nota
+from auditoria import registrar_auditoria, validar_nota, obtener_todos_los_registros
 
 ctk.set_appearance_mode("System")  
 ctk.set_default_color_theme("blue")  
@@ -20,7 +20,7 @@ class ActionPanel(ctk.CTkFrame):
         self.title_label.pack(pady=(0, 20), anchor="w")
         
         self.student_entry = ctk.CTkEntry(
-            self, placeholder_text="ID o Nombre del Estudiante", height=40
+            self, placeholder_text="Cédula del Estudiante", height=40
         )
         self.student_entry.pack(fill="x", pady=10)
         
@@ -63,12 +63,6 @@ class ActionPanel(ctk.CTkFrame):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
         mock_hash = "0x" + str(hex(hash(student + grade)))[2:10] + "...done"
         
-        self.master.logs_table.add_log_entry(
-            current_time, 
-            f"Registro Nota: {student} -> {subject}: {grade}", 
-            mock_hash
-        )
-    
         registrar_auditoria(
             usuario="Barbara_Admin",  
             estudiante=student,
@@ -76,7 +70,9 @@ class ActionPanel(ctk.CTkFrame):
             nota_nueva_str=grade,
             nota_anterior=0
         )
-       
+        
+        self.master.master.dashboard.logs_table.cargar_registros_desde_bd()
+        
         self.student_entry.delete(0, 'end')
         self.grade_entry.delete(0, 'end')
 
@@ -87,11 +83,12 @@ class AuditLogsTable(ctk.CTkScrollableFrame):
         super().__init__(master, **kwargs)
         
         # Distribución de columnas balanceada para que nada se pise
-        self.grid_columnconfigure(0, weight=2) # Espacio para Fecha
-        self.grid_columnconfigure(1, weight=4) # Espacio ancho para la Acción
-        self.grid_columnconfigure(2, weight=2) # Espacio para el Hash
+        self.grid_columnconfigure(0, weight=2)  # Espacio para Fecha
+        self.grid_columnconfigure(1, weight=4)  # Espacio ancho para la Acción
+        self.grid_columnconfigure(2, weight=2)  # Espacio para el Hash
         
         self.current_row = 1
+        self.filas = []  
         
         headers = ["Fecha/Hora", "Acción Realizada", "Firma Digital (Hash)"]
         for col, text in enumerate(headers):
@@ -99,9 +96,18 @@ class AuditLogsTable(ctk.CTkScrollableFrame):
             lbl = ctk.CTkLabel(self, text=text, font=ctk.CTkFont(size=12, weight="bold"), text_color="gray", anchor="w")
             lbl.grid(row=0, column=col, padx=padx_config, pady=5, sticky="w")
 
+    def limpiar_tabla(self):
+        """Limpia todas las filas de la tabla excepto los encabezados."""
+        for fila in self.filas:
+            for widget in fila:
+                widget.destroy()
+        self.filas.clear()
+        self.current_row = 1
+
     def add_log_entry(self, timestamp: str, action: str, crypto_hash: str):
         """Inserta las filas de forma ordenada y alineada."""
         data = [timestamp, action, crypto_hash]
+        fila_widgets = []
         
         for col_idx, text in enumerate(data):
             font_style = ctk.CTkFont(family="Courier", size=11) if col_idx == 2 else ctk.CTkFont(size=12)
@@ -109,12 +115,43 @@ class AuditLogsTable(ctk.CTkScrollableFrame):
             
             lbl = ctk.CTkLabel(self, text=text, font=font_style, text_color=text_color, anchor="w")
             
-            # Margen de seguridad en la primera columna para evitar el recorte del "20"
             padx_config = (20, 10) if col_idx == 0 else 10
             
             lbl.grid(row=self.current_row, column=col_idx, padx=padx_config, pady=8, sticky="w")
-            
+            fila_widgets.append(lbl)
+        
+        self.filas.append(fila_widgets)
         self.current_row += 1
+    
+    def cargar_registros_desde_bd(self):
+        """Carga todos los registros existentes desde la base de datos."""
+        self.limpiar_tabla()
+        registros = obtener_todos_los_registros()
+        
+        if not registros:
+            print("⚠️ No hay registros para mostrar")
+            return
+        
+        for registro in registros:
+            if len(registro) >= 5:
+                fecha = registro[0]      # fecha_cambio
+                usuario = registro[1]    # usuario
+                estudiante = registro[2]  # cedula_estudiante
+                materia = registro[3]    # materia
+                nota = registro[4]       # nota_nueva
+                hash_firma = registro[5] if len(registro) > 5 else "0x00000000...done"
+                
+                # Formatear la acción como en tu imagen
+                accion = f"Registro Nota: {estudiante} -> {materia}: {int(nota) if nota.is_integer() else nota}"
+                
+                self.add_log_entry(fecha, accion, hash_firma)
+            else:
+                fecha = registro[0]
+                usuario = registro[1]
+                nota = registro[2]
+                hash_firma = registro[3]
+                accion = f"Registro Nota: {usuario} -> Nota: {int(nota) if nota.is_integer() else nota}"
+                self.add_log_entry(fecha, accion, hash_firma)
 
 
 class DashboardFrame(ctk.CTkFrame):
@@ -146,7 +183,16 @@ class AuditGradesApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         
         self.dashboard = DashboardFrame(self)
-        self.dashboard.grid(row=0, column=0, sticky="nsew", padx=15, pady=15) 
+        self.dashboard.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
+        
+        # Cargar los registros existentes al iniciar la aplicación
+        self.after(500, self.cargar_registros_iniciales)
+    
+    def cargar_registros_iniciales(self):
+        """Carga los registros existentes desde la base de datos."""
+        print("🔄 Cargando registros desde la base de datos...")
+        self.dashboard.logs_table.cargar_registros_desde_bd()
+
 
 if __name__ == "__main__":
     app = AuditGradesApp() 

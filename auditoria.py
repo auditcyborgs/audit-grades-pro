@@ -2,7 +2,6 @@ import os
 import sqlite3
 from datetime import datetime
 
-# Ruta exacta a la base de datos según tu estructura de carpetas
 DB_PATH = os.path.join("bd", "sistema_de_notas.db")
 
 def validar_nota(nota_str):
@@ -63,3 +62,76 @@ def registrar_auditoria(usuario, estudiante, materia, nota_nueva_str, nota_anter
         
     except Exception as e:
         print(f"❌ [LOG ERROR]: No se pudo escribir en el archivo log: {e}")
+
+
+def obtener_todos_los_registros():
+    """
+    Obtiene todos los registros combinando las tablas notas y auditoria_notas.
+    Retorna una lista de tuplas con (fecha_cambio, usuario, cedula_estudiante, materia, nota_nueva, hash)
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*) FROM auditoria_notas")
+        count_audit = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM notas")
+        count_notas = cursor.fetchone()[0]
+        
+        print(f"📊 Registros en auditoria_notas: {count_audit}")
+        print(f"📊 Registros en notas: {count_notas}")
+        
+        if count_audit == 0 or count_notas == 0:
+            print("⚠️ No hay registros en la base de datos")
+            conn.close()
+            return []
+        
+        cursor.execute('''
+            SELECT 
+                a.fecha_cambio,
+                a.usuario,
+                n.cedula_estudiante,
+                n.materia,
+                a.nota_nueva,
+                '0x' || substr(hex(randomblob(8)), 1, 16) as hash_firma
+            FROM auditoria_notas a
+            CROSS JOIN notas n
+            WHERE a.rowid = n.rowid
+            ORDER BY a.fecha_cambio DESC
+        ''')
+        
+        registros = cursor.fetchall()
+        print(f"✅ Se encontraron {len(registros)} registros para mostrar")
+        conn.close()
+        return registros
+        
+    except sqlite3.Error as e:
+        print(f"❌ [SQLITE ERROR]: No se pudo obtener los registros: {e}")
+        return []
+
+
+def obtener_registros_simple():
+    """
+    Versión simplificada - obtiene solo registros de auditoría con notas
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT 
+                datetime(fecha_cambio) as fecha,
+                usuario,
+                nota_nueva,
+                '0x' || substr(hex(randomblob(8)), 1, 16) as hash_firma
+            FROM auditoria_notas
+            ORDER BY fecha_cambio DESC
+        ''')
+        
+        registros = cursor.fetchall()
+        conn.close()
+        return registros
+        
+    except sqlite3.Error as e:
+        print(f"❌ Error: {e}")
+        return []
