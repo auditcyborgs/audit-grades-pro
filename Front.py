@@ -27,7 +27,7 @@ def verificar_y_crear_estructura():
         """)
         
         if not cursor.fetchone():
-            print("📌 Creando tabla 'materias'...")
+            print("Creando tabla 'materias'...")
             cursor.execute('''
                 CREATE TABLE materias (
                     codigo_materia TEXT PRIMARY KEY,
@@ -57,7 +57,7 @@ def verificar_y_crear_estructura():
         columnas = [col[1] for col in cursor.fetchall()]
         
         if 'codigo_materia' not in columnas:
-            print("📌 Agregando columna 'codigo_materia' a la tabla notas...")
+            print("Agregando columna 'codigo_materia' a la tabla notas...")
             cursor.execute("ALTER TABLE notas ADD COLUMN codigo_materia TEXT DEFAULT 'MAT-01'")
             cursor.execute("UPDATE notas SET codigo_materia = 'MAT-01' WHERE codigo_materia IS NULL")
             estructura_modificada = True
@@ -68,7 +68,7 @@ def verificar_y_crear_estructura():
         columnas_aud = [col[1] for col in cursor.fetchall()]
         
         if 'fecha_cambio' not in columnas_aud:
-            print("📌 Actualizando tabla 'auditoria_notas'...")
+            print("Actualizando tabla 'auditoria_notas'...")
             try:
                 cursor.execute("ALTER TABLE auditoria_notas ADD COLUMN fecha_cambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
                 estructura_modificada = True
@@ -77,13 +77,13 @@ def verificar_y_crear_estructura():
         
         if estructura_modificada:
             conn.commit()
-            print("🏗️ Estructura de base de datos actualizada correctamente")
+            print("Estructura de base de datos actualizada correctamente")
         
         conn.close()
         return True
         
     except sqlite3.Error as e:
-        print(f"⚠️ Error verificando estructura: {e}")
+        print(f"Error verificando estructura: {e}")
         return False
 
 # Ejecutar verificación automática
@@ -98,7 +98,7 @@ try:
                            obtener_todos_los_registros, modificar_auditoria, 
                            eliminar_auditoria)
 except Exception as e:
-    print(f"⚠️ Error importando auditoria: {e}")
+    print(f"Error importando auditoria: {e}")
     def registrar_auditoria(*args, **kwargs): return False
     def validar_nota(*args, **kwargs): return True, ""
     def obtener_todos_los_registros(*args, **kwargs): return []

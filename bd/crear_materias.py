@@ -45,7 +45,7 @@ def crear_estructura_materias():
         columnas = [col[1] for col in cursor.fetchall()]
         
         if 'codigo_materia' not in columnas:
-            print("📌 Agregando columna codigo_materia a la tabla notas...")
+            print("Agregando columna codigo_materia a la tabla notas...")
             cursor.execute("ALTER TABLE notas ADD COLUMN codigo_materia TEXT DEFAULT 'MAT-01'")
             cursor.execute("UPDATE notas SET codigo_materia = 'MAT-01' WHERE codigo_materia IS NULL")
             print("✅ Columna agregada")
@@ -56,7 +56,7 @@ def crear_estructura_materias():
         cursor.execute("SELECT codigo_materia, nombre_materia, creditos FROM materias")
         materias = cursor.fetchall()
         print("\n" + "="*50)
-        print("📚 MATERIAS DISPONIBLES:")
+        print("MATERIAS DISPONIBLES:")
         print("="*50)
         for codigo, nombre, creditos in materias:
             print(f"   • {codigo} - {nombre} ({creditos} créditos)")
@@ -74,6 +74,6 @@ def crear_estructura_materias():
         return False
 
 if __name__ == "__main__":
-    print("🔄 Preparando base de datos para materias...")
+    print("Preparando base de datos para materias...")
     crear_estructura_materias()
-    print("\n💡 Ahora puedes ejecutar front.py normalmente")
+    print("\n Ahora puedes ejecutar front.py normalmente")
