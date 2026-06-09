@@ -12,7 +12,6 @@ DB_PATH = os.path.join("bd", "sistema_de_notas.db")
 def verificar_y_crear_estructura():
     """Verifica y crea automáticamente la estructura necesaria si no existe"""
     try:
-        # Asegurar que la carpeta existe
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         
         conn = sqlite3.connect(DB_PATH)
@@ -40,7 +39,6 @@ def verificar_y_crear_estructura():
             ''')
             estructura_modificada = True
             
-            # Insertar materias por defecto
             materias_default = [
                 ('MAT-01', 'Matemáticas', 'Matemáticas básicas y avanzadas', 4),
                 ('FIS-01', 'Física', 'Física general', 4),
@@ -88,7 +86,7 @@ def verificar_y_crear_estructura():
         print(f"⚠️ Error verificando estructura: {e}")
         return False
 
-# Ejecutar verificación automática al importar
+# Ejecutar verificación automática
 verificar_y_crear_estructura()
 
 # =====================================================================
@@ -315,7 +313,7 @@ class ActionPanel(ctk.CTkFrame):
 
 
 class AuditLogsTable(ctk.CTkScrollableFrame):
-    """Historial de notas - LEE DE LA BD Y SE REFRESCA AUTOMÁTICAMENTE"""
+    """Historial de notas - LEE DE LA BD"""
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self.grid_columnconfigure(0, weight=2)
@@ -404,7 +402,6 @@ class StudentInfoModule(ctk.CTkFrame):
             lbl.grid(row=0, column=idx, padx=10, pady=5)
             self.widgets_dinamicos.append(lbl)
         
-        # Leer de la BD
         registros = obtener_todos_los_registros()
         alumnos_data = {}
         
@@ -482,7 +479,6 @@ class SingleStudentSearchModule(ctk.CTkFrame):
         for w in self.result_box.winfo_children():
             w.destroy()
         
-        # Leer de la BD
         registros = obtener_todos_los_registros()
         
         coincidencias = []
@@ -599,14 +595,13 @@ class AuditGradesApp(ctk.CTk):
         self.main_dashboard = TeacherDashboard(self)
         self.main_dashboard.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
         
-        # Auto-refrescar cada 5 segundos
         self.after(500, self.refresh_all_views)
         self.iniciar_auto_refresh()
     
     def iniciar_auto_refresh(self):
         """Actualiza automáticamente las tablas cada 5 segundos"""
         self.refresh_all_views()
-        self.after(5000, self.iniciar_auto_refresh)  # Cada 5 segundos
+        self.after(5000, self.iniciar_auto_refresh)
     
     def refresh_all_views(self):
         """Refresca todas las vistas con datos actuales de la BD"""

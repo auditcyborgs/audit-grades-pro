@@ -26,7 +26,6 @@ def obtener_codigo_materia(cursor, nombre_materia):
     if res:
         return res[0]
     
-    # Crear nueva materia si no existe
     codigo_nuevo = nombre_materia[:3].upper() + "-" + str(abs(hash(nombre_materia)) % 100).zfill(2)
     try:
         cursor.execute('''
@@ -38,24 +37,25 @@ def obtener_codigo_materia(cursor, nombre_materia):
         return "GEN-01"
 
 def obtener_todos_los_registros():
-    """Trae SOLO los registros de la base de datos (sin duplicar con memoria)"""
+    """Trae SOLO los registros reales de la base de datos"""
     try:
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
+        # Consulta limpia sin textos extraños
         cursor.execute('''
             SELECT 
-                n.fecha_registro as fecha,
-                COALESCE(a.usuario, 'Sistema') as usuario,
-                e.nombre || ' ' || e.apellido as estudiante_nombre,
+                n.fecha_registro,
+                e.nombre,
+                e.apellido,
                 e.cedula,
                 m.nombre_materia,
                 n.nota
             FROM notas n
             LEFT JOIN estudiante e ON n.cedula = e.cedula
             LEFT JOIN materias m ON n.codigo_materia = m.codigo_materia
-            LEFT JOIN auditoria_notas a ON a.nota_nueva = n.nota
+            WHERE n.nota IS NOT NULL
             ORDER BY n.fecha_registro DESC
         ''')
         registros = cursor.fetchall()
@@ -67,23 +67,33 @@ def obtener_todos_los_registros():
         registros_formateados = []
         for r in registros:
             fecha = r[0] if r[0] else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            usuario = r[1] if r[1] else "Sistema"
-            estudiante_completo = f"{r[2]} [{r[3]}]" if r[2] else f"Estudiante {r[3]}"
+            nombre = r[1] if r[1] else ""
+            apellido = r[2] if r[2] else ""
+            cedula = r[3] if r[3] else ""
             materia = r[4] if r[4] else "General"
-            nota = str(int(r[5]) if r[5] and float(r[5]).is_integer() else r[5])
-            registros_formateados.append((fecha, usuario, estudiante_completo, materia, nota))
+            nota = r[5] if r[5] is not None else 0
+            
+            # Formatear nombre completo
+            nombre_completo = f"{nombre} {apellido}".strip() if nombre or apellido else "Estudiante"
+            estudiante_completo = f"{nombre_completo} [{cedula}]" if cedula else nombre_completo
+            
+            # Formatear nota
+            try:
+                nota_val = float(nota)
+                nota_str = str(int(nota_val)) if nota_val.is_integer() else str(nota_val)
+            except:
+                nota_str = str(nota)
+            
+            registros_formateados.append((fecha, "Sistema", estudiante_completo, materia, nota_str))
         
         return registros_formateados
         
-    except sqlite3.OperationalError as e:
-        print(f"⚠️ Error de tabla: {e}")
-        return []
     except Exception as e:
-        print(f"⚠️ Error inesperado al leer la BD: {e}")
+        print(f"⚠️ Error al leer la BD: {e}")
         return []
 
 def registrar_auditoria(usuario, estudiante, materia, nota_nueva_str, nota_anterior=0):
-    """Inserta la nota SOLO en la base de datos (sin memoria)"""
+    """Inserta la nota SOLO en la base de datos"""
     try:
         nota_nueva = float(nota_nueva_str)
     except ValueError:
@@ -116,10 +126,7 @@ def registrar_auditoria(usuario, estudiante, materia, nota_nueva_str, nota_anter
         
         # Verificar si el estudiante existe
         cursor.execute("SELECT cedula FROM estudiante WHERE cedula = ?", (cedula_num,))
-        estudiante_existente = cursor.fetchone()
-        
-        if not estudiante_existente:
-            # Insertar nuevo estudiante con correo único
+        if not cursor.fetchone():
             correo_unico = f"{cedula_num}@estudiante.local"
             cursor.execute('''
                 INSERT INTO estudiante (cedula, nombre, apellido, edad, correo, fecha_registro)
@@ -143,16 +150,7 @@ def registrar_auditoria(usuario, estudiante, materia, nota_nueva_str, nota_anter
 
         conn.commit()
         conn.close()
-        print(f"💾 Nota {nota_nueva} guardada para {nombre_estudiante} en {materia}")
-        
-        # Log plano de respaldo
-        try:
-            fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            with open("auditoria_notas.log", "a", encoding="utf-8") as archivo:
-                archivo.write(f"{fecha_hora} - [REGISTRO] - {usuario} | {nombre_estudiante} | {cedula_num} | {materia} | {nota_nueva}\n")
-        except:
-            pass
-        
+        print(f"💾 Nota {nota_nueva} guardada para {nombre_estudiante}")
         return True
 
     except sqlite3.Error as e:
@@ -212,12 +210,6 @@ def modificar_auditoria(usuario, estudiante, materia, nota_nueva_str):
         conn.commit()
         conn.close()
         
-        try:
-            with open("auditoria_notas.log", "a", encoding="utf-8") as archivo:
-                archivo.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - [MODIFICACIÓN] - {usuario} | {nombre_estudiante} | {nota_anterior} -> {nota_nueva}\n")
-        except:
-            pass
-        
         return True, f"Modificado: {nota_anterior} -> {nota_nueva}"
 
     except sqlite3.Error as e:
@@ -259,12 +251,6 @@ def eliminar_auditoria(usuario, estudiante, materia):
         
         conn.commit()
         conn.close()
-        
-        try:
-            with open("auditoria_notas.log", "a", encoding="utf-8") as archivo:
-                archivo.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - [ELIMINACIÓN] - {usuario} | {nombre_estudiante} | {materia}\n")
-        except:
-            pass
         
         return True, "Eliminado con éxito"
     except sqlite3.Error as e:
