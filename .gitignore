@@ -1,15 +1,18 @@
-<<<<<<< HEAD
-audit-grades-pro/
+# Entornos virtuales y caché de Python
 __pycache__/
-*.log
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+
+# Archivos de configuración local y variables de entorno
 .env
-=======
-<<<<<<< HEAD
+
+# Archivos de registro (Logs de auditoría local)
+*.log
 auditoria_notas.log
-=======
-audit-grades-pro/
-__pycache__/
-*.log
-.env
->>>>>>> afb604c2f30d9a7d581dd8b14e44b9d9bbc7cc9f
->>>>>>> 976aa930d109f48555bd2fd0c9ded48d60a44375
+
+# Base de datos local (Para evitar que se pisen los datos de cada quien en GitHub)
+bd/sistema_de_notas.db

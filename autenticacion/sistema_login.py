@@ -1,7 +1,6 @@
 import sqlite3
 import os
 
-# CONFIGURACIÓN DE TU RUTA Y BASE DE DATOS REAL
 CARPETA_BD = r"C:\Sistema_de_notas\audit-grades-pro\bd"
 DB_NAME = os.path.join(CARPETA_BD, "sistema_de_notas.db")
 
@@ -14,7 +13,6 @@ def inicializar_base_de_datos():
     cursor = conexion.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
     
-    # 1. Tabla de Usuarios (Credenciales)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         cedula TEXT PRIMARY KEY,
@@ -78,10 +76,6 @@ def inicializar_base_de_datos():
     conexion.close()
     print("✔️ Base de datos sincronizada. Relaciones y Roles Root cargados correctamente.")
 
-# =====================================================================
-# SISTEMA DE AUTENTICACIÓN
-# =====================================================================
-
 def registrar_usuario_publico():
     print("\n--- REGISTRO PÚBLICO (SOLO ALUMNOS Y PROFES) ---")
     cedula = input("Cédula / Usuario: ").strip()
@@ -135,10 +129,6 @@ def iniciar_sesion():
     conexion.close()
     print("❌ Credenciales incorrectas.")
     return None
-
-# =====================================================================
-# VISTAS DE USUARIOS
-# =====================================================================
 
 def vista_estudiante(usuario):
     """El estudiante SOLO puede ver sus materias, notas y comentarios."""
@@ -325,10 +315,6 @@ def vista_root(usuario):
             conexion.close()
             break
         conexion.close()
-
-# =====================================================================
-# MENÚ PRINCIPAL
-# =====================================================================
 
 def menu_principal():
     inicializar_base_de_datos()
