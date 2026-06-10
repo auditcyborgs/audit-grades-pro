@@ -3,7 +3,8 @@ import sqlite3
 from datetime import datetime
 
 # Ruta exacta a la base de datos relacional
-DB_PATH = os.path.join("bd", "sistema_de_notas.db")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "bd", "sistema_de_notas.db")
 
 def validar_nota(nota_str):
     """Valida que la nota sea un número entero entre 0 y 20."""
