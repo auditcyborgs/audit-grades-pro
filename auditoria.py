@@ -256,4 +256,3 @@ def eliminar_auditoria(usuario, estudiante, materia):
         return True, "Eliminado con éxito"
     except sqlite3.Error as e:
         return False, f"Error: {e}"
-        prueba
