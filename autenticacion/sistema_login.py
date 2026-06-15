@@ -10,55 +10,37 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 # ==================== VERIFICAR Y REPARAR TABLA NOTAS ====================
-def verificar_tabla_notas():
-    """Verifica que la tabla notas tenga todas las columnas necesarias"""
+def reparar_tabla_notas():
+    """Agrega columnas faltantes a la tabla notas"""
     try:
         conn = sqlite3.connect(DB_NAME, timeout=10)
         cursor = conn.cursor()
         
-        # Verificar si la tabla existe
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='notas'")
-        if not cursor.fetchone():
-            # Crear tabla si no existe
-            cursor.execute("""
-                CREATE TABLE notas (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cedula TEXT,
-                    estudiante TEXT,
-                    codigo_materia TEXT,
-                    nota REAL,
-                    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    estado TEXT DEFAULT 'pendiente'
-                )
-            """)
-            print("✅ Tabla notas creada")
-        else:
-            # Verificar columnas existentes
-            cursor.execute("PRAGMA table_info(notas)")
-            columnas = [col[1] for col in cursor.fetchall()]
-            
-            # Agregar columna fecha si falta
-            if 'fecha' not in columnas:
-                cursor.execute("ALTER TABLE notas ADD COLUMN fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
-                print("✅ Columna 'fecha' agregada")
-            
-            # Agregar columna estado si falta
-            if 'estado' not in columnas:
-                cursor.execute("ALTER TABLE notas ADD COLUMN estado TEXT DEFAULT 'pendiente'")
-                print("✅ Columna 'estado' agregada")
-            
-            # Agregar columna estudiante si falta
-            if 'estudiante' not in columnas:
-                cursor.execute("ALTER TABLE notas ADD COLUMN estudiante TEXT")
-                print("✅ Columna 'estudiante' agregada")
+        cursor.execute("PRAGMA table_info(notas)")
+        columnas = [col[1] for col in cursor.fetchall()]
+        
+        if 'profesor' not in columnas:
+            cursor.execute("ALTER TABLE notas ADD COLUMN profesor TEXT")
+            print("✅ Columna 'profesor' agregada")
+        
+        if 'comentario' not in columnas:
+            cursor.execute("ALTER TABLE notas ADD COLUMN comentario TEXT")
+            print("✅ Columna 'comentario' agregada")
+        
+        if 'fecha' not in columnas:
+            cursor.execute("ALTER TABLE notas ADD COLUMN fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            print("✅ Columna 'fecha' agregada")
+        
+        if 'estado' not in columnas:
+            cursor.execute("ALTER TABLE notas ADD COLUMN estado TEXT DEFAULT 'pendiente'")
+            print("✅ Columna 'estado' agregada")
         
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"Error verificando tabla: {e}")
+        print(f"Error reparando tabla: {e}")
 
-# Ejecutar verificación al inicio
-verificar_tabla_notas()
+reparar_tabla_notas()
 
 # ==================== FUNCIONES DE BASE DE DATOS ====================
 def conectar():
@@ -81,105 +63,6 @@ def verificar_login(usuario, contrasena):
         print(f"Error login: {e}")
         return None
 
-def registrar_usuario(cedula, contrasena, rol, nombre):
-    try:
-        conn = conectar()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT username FROM usuarios WHERE username = ?", (cedula,))
-        if cursor.fetchone():
-            conn.close()
-            return False, "Este nombre de usuario ya existe"
-        
-        cursor.execute("INSERT INTO usuarios (id_usuario, username, password, rol) VALUES (?, ?, ?, ?)", 
-                      (cedula, cedula, contrasena, rol))
-        
-        # Registrar también en tabla estudiantes
-        cursor.execute("INSERT OR IGNORE INTO estudiantes (cedula_estudiante, nombre_completo) VALUES (?, ?)", (cedula, nombre))
-        
-        conn.commit()
-        conn.close()
-        return True, f"✅ {rol.title()} registrado exitosamente"
-    except Exception as e:
-        return False, f"❌ Error: {e}"
-
-# ==================== FUNCIONES DE NOTAS ====================
-def obtener_todas_notas(filtro_estado=None):
-    try:
-        conn = conectar()
-        cursor = conn.cursor()
-        
-        if filtro_estado:
-            cursor.execute("""
-                SELECT id, cedula, estudiante, codigo_materia, nota, fecha, estado
-                FROM notas
-                WHERE estado = ?
-                ORDER BY id DESC
-            """, (filtro_estado,))
-        else:
-            cursor.execute("""
-                SELECT id, cedula, estudiante, codigo_materia, nota, fecha, estado
-                FROM notas
-                ORDER BY id DESC
-            """)
-        
-        notas = cursor.fetchall()
-        conn.close()
-        
-        resultado = []
-        for n in notas:
-            nombre_materia = obtener_nombre_materia(n[3])
-            fecha_valor = n[5] if len(n) > 5 and n[5] else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            estado_valor = n[6] if len(n) > 6 else "pendiente"
-            resultado.append((n[0], n[2] if n[2] else n[1], nombre_materia, n[4], "", fecha_valor, estado_valor, "Sistema"))
-        return resultado
-    except Exception as e:
-        print(f"Error obtener notas: {e}")
-        return []
-
-def obtener_notas_estudiante(cedula):
-    """Obtiene las notas de un estudiante específico por su cédula"""
-    try:
-        conn = conectar()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT codigo_materia, nota, fecha, estado
-            FROM notas
-            WHERE cedula = ?
-            ORDER BY id DESC
-        """, (cedula,))
-        
-        notas = cursor.fetchall()
-        conn.close()
-        
-        resultado = []
-        for n in notas:
-            codigo = n[0]
-            nota_valor = n[1]
-            fecha_valor = n[2] if n[2] else datetime.now().strftime("%Y-%m-%d")
-            estado_valor = n[3] if len(n) > 3 and n[3] else "pendiente"
-            
-            nombre_materia = obtener_nombre_materia(codigo)
-            resultado.append((nombre_materia, nota_valor, "", fecha_valor, estado_valor))
-        
-        return resultado
-    except Exception as e:
-        print(f"Error obtener notas estudiante: {e}")
-        return []
-
-def obtener_nombre_materia(codigo):
-    """Obtiene el nombre de una materia por su código"""
-    try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute("SELECT nombre_materia FROM materias WHERE codigo_materia = ?", (codigo,))
-        materia = cursor.fetchone()
-        conn.close()
-        return materia[0] if materia else codigo
-    except:
-        return codigo
-
 def obtener_materias():
     try:
         conn = conectar()
@@ -187,34 +70,43 @@ def obtener_materias():
         cursor.execute("SELECT codigo_materia, nombre_materia FROM materias")
         materias = cursor.fetchall()
         conn.close()
-        return materias if materias else [("MAT-101", "Matemáticas"), ("FIS-101", "Física")]
+        
+        if not materias:
+            conn2 = conectar()
+            cursor2 = conn2.cursor()
+            materias_ejemplo = [
+                ("MAT-101", "Matemáticas I", 4),
+                ("MAT-102", "Matemáticas II", 4),
+                ("FIS-101", "Física I", 4),
+                ("PROG-101", "Programación I", 4),
+                ("BD-101", "Base de Datos", 3),
+            ]
+            for m in materias_ejemplo:
+                cursor2.execute("INSERT OR IGNORE INTO materias (codigo_materia, nombre_materia, creditos) VALUES (?, ?, ?)", m)
+            conn2.commit()
+            conn2.close()
+            return materias_ejemplo
+        
+        return materias
     except:
         return [("MAT-101", "Matemáticas"), ("FIS-101", "Física")]
 
-def registrar_nota(cedula, codigo_materia, calificacion, comentario, profesor):
+def registrar_nota(cedula_estudiante, codigo_materia, calificacion, comentario, profesor):
     try:
         conn = conectar()
         cursor = conn.cursor()
         
-        # Verificar si el estudiante existe
-        cursor.execute("SELECT nombre_completo FROM estudiantes WHERE cedula_estudiante = ?", (cedula,))
+        cursor.execute("SELECT nombre_completo FROM estudiantes WHERE cedula_estudiante = ?", (cedula_estudiante,))
         estudiante = cursor.fetchone()
+        nombre_estudiante = estudiante[0] if estudiante else cedula_estudiante
         
-        if not estudiante:
-            conn.close()
-            return False, f"❌ Estudiante con cédula {cedula} no encontrado. Debe registrarse primero."
-        
-        nombre_estudiante = estudiante[0]
-        
-        # Insertar nota (sin especificar fecha, se usará CURRENT_TIMESTAMP)
         cursor.execute("""
-            INSERT INTO notas (cedula, estudiante, codigo_materia, nota, estado)
-            VALUES (?, ?, ?, ?, 'pendiente')
-        """, (cedula, nombre_estudiante, codigo_materia, calificacion))
-        
+            INSERT INTO notas (cedula, estudiante, codigo_materia, nota, comentario, profesor, estado)
+            VALUES (?, ?, ?, ?, ?, ?, 'pendiente')
+        """, (cedula_estudiante, nombre_estudiante, codigo_materia, calificacion, comentario, profesor))
         conn.commit()
         conn.close()
-        return True, f"✅ Nota registrada para {nombre_estudiante}"
+        return True, "Nota registrada (pendiente de aprobación)"
     except Exception as e:
         return False, str(e)
 
@@ -222,10 +114,10 @@ def actualizar_nota(id_nota, calificacion, comentario):
     try:
         conn = conectar()
         cursor = conn.cursor()
-        cursor.execute("UPDATE notas SET nota = ?, estado = 'pendiente' WHERE id = ?", (calificacion, id_nota))
+        cursor.execute("UPDATE notas SET nota = ?, comentario = ?, estado = 'pendiente' WHERE id = ?", (calificacion, comentario, id_nota))
         conn.commit()
         conn.close()
-        return True, "Nota actualizada"
+        return True, "Nota actualizada (requiere nueva aprobación)"
     except Exception as e:
         return False, str(e)
 
@@ -255,14 +147,50 @@ def rechazar_nota(id_nota, motivo):
     try:
         conn = conectar()
         cursor = conn.cursor()
-        cursor.execute("UPDATE notas SET estado = 'rechazada' WHERE id = ?", (id_nota,))
+        cursor.execute("UPDATE notas SET estado = 'rechazada', comentario = ? WHERE id = ?", (f"RECHAZADA: {motivo}", id_nota))
         conn.commit()
         conn.close()
         return True, "Nota rechazada"
     except Exception as e:
         return False, str(e)
 
-# ==================== PANEL DE NOTAS (PROFESORES) ====================
+def obtener_notas_por_estado(estado=None):
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
+        
+        if estado:
+            cursor.execute("""
+                SELECT id, cedula, estudiante, codigo_materia, nota, comentario, fecha, estado, profesor
+                FROM notas
+                WHERE estado = ?
+                ORDER BY id DESC
+            """, (estado,))
+        else:
+            cursor.execute("""
+                SELECT id, cedula, estudiante, codigo_materia, nota, comentario, fecha, estado, profesor
+                FROM notas
+                ORDER BY id DESC
+            """)
+        
+        notas = cursor.fetchall()
+        conn.close()
+        
+        resultado = []
+        for n in notas:
+            conn2 = conectar()
+            cursor2 = conn2.cursor()
+            cursor2.execute("SELECT nombre_materia FROM materias WHERE codigo_materia = ?", (n[3],))
+            materia = cursor2.fetchone()
+            conn2.close()
+            nombre_materia = materia[0] if materia else n[3]
+            resultado.append((n[0], n[2] if n[2] else n[1], nombre_materia, n[4], n[5] if n[5] else "", n[6] if n[6] else "", n[7] if len(n) > 7 else "pendiente", n[8] if len(n) > 8 else "Sistema"))
+        return resultado
+    except Exception as e:
+        print(f"Error: {e}")
+        return []
+
+# ==================== PANEL DE NOTAS ====================
 class PanelNotas(ctk.CTkFrame):
     def __init__(self, master, usuario_actual, **kwargs):
         super().__init__(master, **kwargs)
@@ -272,140 +200,185 @@ class PanelNotas(ctk.CTkFrame):
         
         self.puede_aprobar = self.rol in ["control de estudio", "director", "root"]
         
+        # Título
         titulo = ctk.CTkLabel(self, text=f"📋 PANEL DE CONTROL - {usuario_actual['nombre']}", 
-                             font=ctk.CTkFont(size=18, weight="bold"))
+                             font=ctk.CTkFont(size=20, weight="bold"))
         titulo.pack(pady=10)
         
-        # Pestañas
-        self.tabview = ctk.CTkTabview(self)
-        self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        self.tabview.add("Todas")
-        self.tabview.add("Pendientes")
-        self.tabview.add("Aprobadas")
-        self.tabview.add("Rechazadas")
-        
-        self.frames = {}
-        for tab in ["Todas", "Pendientes", "Aprobadas", "Rechazadas"]:
-            frame = ctk.CTkScrollableFrame(self.tabview.tab(tab), fg_color="transparent")
-            frame.pack(fill="both", expand=True, padx=5, pady=5)
-            self.frames[tab] = frame
-        
-        # Formulario
-        form_frame = ctk.CTkFrame(self, corner_radius=15, fg_color="#2b2b2b")
-        form_frame.pack(fill="x", padx=10, pady=5)
-        
-        ctk.CTkLabel(form_frame, text="📝 REGISTRAR NOTA", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=5)
-        
-        campos_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-        campos_frame.pack(fill="x", padx=10, pady=5)
-        
-        self.cedula_entry = ctk.CTkEntry(campos_frame, placeholder_text="Cédula del Estudiante", width=180)
-        self.cedula_entry.grid(row=0, column=0, padx=5, pady=5)
-        
-        materias = [m[1] for m in obtener_materias()]
-        self.materia_combo = ctk.CTkOptionMenu(campos_frame, values=materias, width=180)
-        self.materia_combo.grid(row=0, column=1, padx=5, pady=5)
-        
-        self.nota_entry = ctk.CTkEntry(campos_frame, placeholder_text="Nota (0-20)", width=100)
-        self.nota_entry.grid(row=0, column=2, padx=5, pady=5)
-        
-        btn_registrar = ctk.CTkButton(campos_frame, text="REGISTRAR", command=self.registrar_nota, fg_color="#2ecc71")
-        btn_registrar.grid(row=0, column=3, padx=10, pady=5)
-        
-        # Modificar
-        ctk.CTkFrame(form_frame, height=2, fg_color="#555").pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(form_frame, text="✏️ MODIFICAR / ELIMINAR", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=5)
-        
-        mod_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-        mod_frame.pack(fill="x", padx=10, pady=5)
-        
-        self.id_nota_entry = ctk.CTkEntry(mod_frame, placeholder_text="ID Nota", width=80)
-        self.id_nota_entry.grid(row=0, column=0, padx=5, pady=5)
-        
-        self.nueva_nota_entry = ctk.CTkEntry(mod_frame, placeholder_text="Nueva Nota", width=100)
-        self.nueva_nota_entry.grid(row=0, column=1, padx=5, pady=5)
-        
-        btn_actualizar = ctk.CTkButton(mod_frame, text="ACTUALIZAR", command=self.actualizar_nota, fg_color="#e67e22")
-        btn_actualizar.grid(row=0, column=2, padx=5, pady=5)
-        
-        btn_eliminar = ctk.CTkButton(mod_frame, text="ELIMINAR", command=self.eliminar_nota, fg_color="#e74c3c")
-        btn_eliminar.grid(row=0, column=3, padx=5, pady=5)
-        
-        # Aprobar/Rechazar
-        if self.puede_aprobar:
-            ctk.CTkFrame(form_frame, height=2, fg_color="#555").pack(fill="x", padx=10, pady=5)
-            ctk.CTkLabel(form_frame, text="✅ APROBAR / RECHAZAR", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=5)
+        # Formulario para registrar notas (solo para profesores)
+        if not self.puede_aprobar:
+            form_frame = ctk.CTkFrame(self, corner_radius=15, fg_color="#2b2b2b")
+            form_frame.pack(fill="x", padx=20, pady=10)
             
-            aprob_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
-            aprob_frame.pack(fill="x", padx=10, pady=5)
+            ctk.CTkLabel(form_frame, text="📝 REGISTRAR NUEVA NOTA", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
             
-            self.id_aprobar_entry = ctk.CTkEntry(aprob_frame, placeholder_text="ID Nota", width=80)
-            self.id_aprobar_entry.grid(row=0, column=0, padx=5, pady=5)
+            campos_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+            campos_frame.pack(fill="x", padx=20, pady=10)
             
-            self.motivo_entry = ctk.CTkEntry(aprob_frame, placeholder_text="Motivo (si es rechazo)", width=200)
-            self.motivo_entry.grid(row=0, column=1, padx=5, pady=5)
+            # Cédula
+            ctk.CTkLabel(campos_frame, text="Cédula del Estudiante:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+            self.cedula_entry = ctk.CTkEntry(campos_frame, placeholder_text="Ej: 28434992", width=200)
+            self.cedula_entry.grid(row=1, column=0, padx=10, pady=5)
             
-            btn_aprobar = ctk.CTkButton(aprob_frame, text="APROBAR", command=self.aprobar_nota, fg_color="#2ecc71")
-            btn_aprobar.grid(row=0, column=2, padx=5, pady=5)
+            # Materia
+            ctk.CTkLabel(campos_frame, text="Materia:").grid(row=0, column=1, padx=10, pady=5, sticky="w")
+            materias = [m[1] for m in obtener_materias()]
+            self.materia_combo = ctk.CTkOptionMenu(campos_frame, values=materias, width=200)
+            self.materia_combo.grid(row=1, column=1, padx=10, pady=5)
             
-            btn_rechazar = ctk.CTkButton(aprob_frame, text="RECHAZAR", command=self.rechazar_nota, fg_color="#e74c3c")
-            btn_rechazar.grid(row=0, column=3, padx=5, pady=5)
+            # Nota
+            ctk.CTkLabel(campos_frame, text="Calificación:").grid(row=0, column=2, padx=10, pady=5, sticky="w")
+            self.nota_entry = ctk.CTkEntry(campos_frame, placeholder_text="0-20", width=100)
+            self.nota_entry.grid(row=1, column=2, padx=10, pady=5)
+            
+            # Comentario
+            ctk.CTkLabel(campos_frame, text="Comentario:").grid(row=0, column=3, padx=10, pady=5, sticky="w")
+            self.comentario_entry = ctk.CTkEntry(campos_frame, placeholder_text="Opcional", width=150)
+            self.comentario_entry.grid(row=1, column=3, padx=10, pady=5)
+            
+            # Botón registrar
+            btn_registrar = ctk.CTkButton(campos_frame, text="REGISTRAR", command=self.registrar_nota, fg_color="#2ecc71", height=40)
+            btn_registrar.grid(row=1, column=4, padx=20, pady=5)
         
-        btn_refresh = ctk.CTkButton(self, text="🔄 REFRESCAR", command=self.cargar_tablas, fg_color="#3498db", width=150)
-        btn_refresh.pack(pady=5)
+        # Tabla de notas
+        self.tabla_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        self.tabla_frame.pack(fill="both", expand=True, padx=20, pady=10)
         
-        self.cargar_tablas()
+        # Botón refrescar
+        btn_refresh = ctk.CTkButton(self, text="🔄 REFRESCAR", command=self.cargar_tabla, fg_color="#3498db", width=150)
+        btn_refresh.pack(pady=10)
+        
+        self.cargar_tabla()
     
-    def cargar_tablas(self):
-        todas = obtener_todas_notas()
-        pendientes = obtener_todas_notas(filtro_estado="pendiente")
-        aprobadas = obtener_todas_notas(filtro_estado="aprobada")
-        rechazadas = obtener_todas_notas(filtro_estado="rechazada")
+    def cargar_tabla(self):
+        # Limpiar tabla
+        for widget in self.tabla_frame.winfo_children():
+            widget.destroy()
         
-        self.cargar_tabla(self.frames["Todas"], todas)
-        self.cargar_tabla(self.frames["Pendientes"], pendientes)
-        self.cargar_tabla(self.frames["Aprobadas"], aprobadas)
-        self.cargar_tabla(self.frames["Rechazadas"], rechazadas)
-    
-    def cargar_tabla(self, parent, notas):
-        for w in parent.winfo_children():
-            w.destroy()
+        notas = obtener_notas_por_estado()
         
         if not notas:
-            ctk.CTkLabel(parent, text="📭 No hay notas", font=ctk.CTkFont(size=14, slant="italic")).pack(pady=50)
+            ctk.CTkLabel(self.tabla_frame, text="📭 No hay notas registradas", font=ctk.CTkFont(size=14, slant="italic")).pack(pady=50)
             return
         
-        headers = ["ID", "Estudiante", "Materia", "Nota", "Estado", "Profesor"]
+        # Encabezados
+        headers = ["ID", "Estudiante", "Materia", "Nota", "Comentario", "Estado", "Profesor", "Fecha", "Acciones"]
         for i, h in enumerate(headers):
-            ctk.CTkLabel(parent, text=h, font=ctk.CTkFont(weight="bold"), text_color="#3498db").grid(row=0, column=i, padx=5, pady=5)
+            ctk.CTkLabel(self.tabla_frame, text=h, font=ctk.CTkFont(size=12, weight="bold"), 
+                        text_color="#3498db").grid(row=0, column=i, padx=10, pady=5, sticky="w")
         
+        # Datos
         for row, nota in enumerate(notas, start=1):
             id_nota = nota[0]
             estudiante = nota[1] if nota[1] else "N/A"
             materia = nota[2] if nota[2] else "N/A"
             calif = nota[3] if nota[3] else "N/A"
+            comentario = nota[4] if nota[4] else "-"
             estado = nota[6] if len(nota) > 6 else "pendiente"
             profesor = nota[7] if len(nota) > 7 else "Sistema"
+            fecha = nota[5][:10] if nota[5] else "Sin fecha"
             
+            # Color según estado
             if estado == "aprobada":
                 color = "#2ecc71"
+                estado_texto = "✅ APROBADA"
             elif estado == "rechazada":
                 color = "#e74c3c"
+                estado_texto = "❌ RECHAZADA"
             else:
                 color = "#f39c12"
+                estado_texto = "⏳ PENDIENTE"
             
-            ctk.CTkLabel(parent, text=str(id_nota)).grid(row=row, column=0, padx=5, pady=2)
-            ctk.CTkLabel(parent, text=estudiante, width=150).grid(row=row, column=1, padx=5, pady=2)
-            ctk.CTkLabel(parent, text=materia, width=120).grid(row=row, column=2, padx=5, pady=2)
-            ctk.CTkLabel(parent, text=str(calif), text_color=color).grid(row=row, column=3, padx=5, pady=2)
-            ctk.CTkLabel(parent, text=estado.upper(), text_color=color).grid(row=row, column=4, padx=5, pady=2)
-            ctk.CTkLabel(parent, text=profesor, width=120).grid(row=row, column=5, padx=5, pady=2)
+            # Mostrar datos
+            ctk.CTkLabel(self.tabla_frame, text=str(id_nota)).grid(row=row, column=0, padx=10, pady=3, sticky="w")
+            ctk.CTkLabel(self.tabla_frame, text=estudiante, width=180).grid(row=row, column=1, padx=10, pady=3, sticky="w")
+            ctk.CTkLabel(self.tabla_frame, text=materia, width=150).grid(row=row, column=2, padx=10, pady=3, sticky="w")
+            ctk.CTkLabel(self.tabla_frame, text=str(calif), text_color=color).grid(row=row, column=3, padx=10, pady=3, sticky="w")
+            ctk.CTkLabel(self.tabla_frame, text=comentario, width=120).grid(row=row, column=4, padx=10, pady=3, sticky="w")
+            ctk.CTkLabel(self.tabla_frame, text=estado_texto, text_color=color).grid(row=row, column=5, padx=10, pady=3, sticky="w")
+            ctk.CTkLabel(self.tabla_frame, text=profesor, width=120).grid(row=row, column=6, padx=10, pady=3, sticky="w")
+            ctk.CTkLabel(self.tabla_frame, text=fecha).grid(row=row, column=7, padx=10, pady=3, sticky="w")
+            
+            # Botones de acciones
+            btn_frame = ctk.CTkFrame(self.tabla_frame, fg_color="transparent")
+            btn_frame.grid(row=row, column=8, padx=10, pady=3)
+            
+            # Botón MODIFICAR (visible para todos)
+            btn_editar = ctk.CTkButton(btn_frame, text="✏️ EDITAR", 
+                                      command=lambda i=id_nota, c=calif, e=estudiante, m=materia: self.abrir_editar(i, c, e, m), 
+                                      fg_color="#e67e22", width=70, height=28)
+            btn_editar.pack(side="left", padx=2)
+            
+            # Botón ELIMINAR (visible para todos)
+            btn_eliminar = ctk.CTkButton(btn_frame, text="🗑️ ELIMINAR", 
+                                        command=lambda i=id_nota: self.eliminar_nota(i), 
+                                        fg_color="#e74c3c", width=70, height=28)
+            btn_eliminar.pack(side="left", padx=2)
+            
+            # Botones de APROBAR/RECHAZAR (solo para control de estudio y director en notas pendientes)
+            if self.puede_aprobar and estado == "pendiente":
+                btn_aprobar = ctk.CTkButton(btn_frame, text="✅ APROBAR", 
+                                           command=lambda i=id_nota: self.aprobar_nota(i), 
+                                           fg_color="#2ecc71", width=80, height=28)
+                btn_aprobar.pack(side="left", padx=2)
+                
+                btn_rechazar = ctk.CTkButton(btn_frame, text="❌ RECHAZAR", 
+                                            command=lambda i=id_nota: self.rechazar_nota(i), 
+                                            fg_color="#e74c3c", width=80, height=28)
+                btn_rechazar.pack(side="left", padx=2)
+    
+    def abrir_editar(self, id_nota, nota_actual, estudiante, materia):
+        """Abre una ventana para editar la nota"""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(f"Editar Nota - ID: {id_nota}")
+        dialog.geometry("450x350")
+        dialog.grab_set()
+        
+        frame = ctk.CTkFrame(dialog, corner_radius=20)
+        frame.pack(pady=20, padx=20, fill="both", expand=True)
+        
+        ctk.CTkLabel(frame, text=f"✏️ EDITANDO NOTA", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=10)
+        ctk.CTkLabel(frame, text=f"Estudiante: {estudiante}", font=ctk.CTkFont(size=14)).pack(pady=5)
+        ctk.CTkLabel(frame, text=f"Materia: {materia}", font=ctk.CTkFont(size=14)).pack(pady=5)
+        
+        ctk.CTkLabel(frame, text="Nueva Calificación:").pack(pady=(20,5))
+        nota_entry = ctk.CTkEntry(frame, placeholder_text="0-20", width=200)
+        nota_entry.insert(0, str(nota_actual))
+        nota_entry.pack(pady=5)
+        
+        ctk.CTkLabel(frame, text="Nuevo Comentario:").pack(pady=(10,5))
+        comentario_entry = ctk.CTkEntry(frame, placeholder_text="Comentario", width=300)
+        comentario_entry.pack(pady=5)
+        
+        def guardar_edicion():
+            nueva_nota_str = nota_entry.get().strip()
+            nuevo_comentario = comentario_entry.get().strip()
+            
+            try:
+                nueva_nota = float(nueva_nota_str)
+                if nueva_nota < 0 or nueva_nota > 20:
+                    self.mostrar_mensaje("Error", "Nota entre 0 y 20", "error")
+                    return
+            except:
+                self.mostrar_mensaje("Error", "Nota inválida", "error")
+                return
+            
+            exito, msg = actualizar_nota(id_nota, nueva_nota, nuevo_comentario)
+            if exito:
+                self.mostrar_mensaje("Éxito", msg, "success")
+                dialog.destroy()
+                self.cargar_tabla()
+            else:
+                self.mostrar_mensaje("Error", msg, "error")
+        
+        btn_guardar = ctk.CTkButton(frame, text="💾 GUARDAR CAMBIOS", command=guardar_edicion, fg_color="#2ecc71", height=40)
+        btn_guardar.pack(pady=20)
     
     def registrar_nota(self):
         cedula = self.cedula_entry.get().strip()
         nota_str = self.nota_entry.get().strip()
         materia_nombre = self.materia_combo.get()
+        comentario = self.comentario_entry.get().strip()
         
         if not cedula or not nota_str:
             self.mostrar_mensaje("Error", "Complete cédula y nota", "error")
@@ -420,103 +393,53 @@ class PanelNotas(ctk.CTkFrame):
             self.mostrar_mensaje("Error", "Nota inválida", "error")
             return
         
+        # Obtener código de materia
         codigo = "MAT-101"
         for m in obtener_materias():
             if m[1] == materia_nombre:
                 codigo = m[0]
                 break
         
-        exito, msg = registrar_nota(cedula, codigo, nota, "", self.usuario_actual['nombre'])
+        exito, msg = registrar_nota(cedula, codigo, nota, comentario, self.usuario_actual['nombre'])
         if exito:
             self.mostrar_mensaje("Éxito", msg, "success")
             self.cedula_entry.delete(0, 'end')
             self.nota_entry.delete(0, 'end')
-            self.cargar_tablas()
+            self.comentario_entry.delete(0, 'end')
+            self.cargar_tabla()
         else:
             self.mostrar_mensaje("Error", msg, "error")
     
-    def actualizar_nota(self):
-        id_nota = self.id_nota_entry.get().strip()
-        nota_str = self.nueva_nota_entry.get().strip()
-        
-        if not id_nota or not nota_str:
-            self.mostrar_mensaje("Error", "Complete ID y nueva nota", "error")
-            return
-        
-        try:
-            nota = float(nota_str)
-            if nota < 0 or nota > 20:
-                self.mostrar_mensaje("Error", "Nota entre 0 y 20", "error")
-                return
-        except:
-            self.mostrar_mensaje("Error", "Nota inválida", "error")
-            return
-        
-        exito, msg = actualizar_nota(int(id_nota), nota, "")
-        if exito:
-            self.mostrar_mensaje("Éxito", msg, "success")
-            self.id_nota_entry.delete(0, 'end')
-            self.nueva_nota_entry.delete(0, 'end')
-            self.cargar_tablas()
-        else:
-            self.mostrar_mensaje("Error", msg, "error")
-    
-    def eliminar_nota(self):
-        id_nota = self.id_nota_entry.get().strip()
-        if not id_nota:
-            self.mostrar_mensaje("Error", "Ingrese el ID", "error")
-            return
-        
-        dialog = ctk.CTkInputDialog(text="Escribe 'CONFIRMAR' para eliminar:", title="Confirmar")
+    def eliminar_nota(self, id_nota):
+        dialog = ctk.CTkInputDialog(text="Escribe 'CONFIRMAR' para eliminar esta nota:", title="Confirmar Eliminación")
         if dialog.get_input() != "CONFIRMAR":
             return
         
-        exito, msg = eliminar_nota(int(id_nota))
+        exito, msg = eliminar_nota(id_nota)
         if exito:
             self.mostrar_mensaje("Éxito", msg, "success")
-            self.id_nota_entry.delete(0, 'end')
-            self.cargar_tablas()
+            self.cargar_tabla()
         else:
             self.mostrar_mensaje("Error", msg, "error")
     
-    def aprobar_nota(self):
-        if not self.puede_aprobar:
-            self.mostrar_mensaje("Error", "No tienes permiso", "error")
-            return
-        
-        id_nota = self.id_aprobar_entry.get().strip()
-        if not id_nota:
-            self.mostrar_mensaje("Error", "Ingrese el ID", "error")
-            return
-        
-        exito, msg = aprobar_nota(int(id_nota))
+    def aprobar_nota(self, id_nota):
+        exito, msg = aprobar_nota(id_nota)
         if exito:
             self.mostrar_mensaje("Éxito", msg, "success")
-            self.id_aprobar_entry.delete(0, 'end')
-            self.cargar_tablas()
+            self.cargar_tabla()
         else:
             self.mostrar_mensaje("Error", msg, "error")
     
-    def rechazar_nota(self):
-        if not self.puede_aprobar:
-            self.mostrar_mensaje("Error", "No tienes permiso", "error")
-            return
-        
-        id_nota = self.id_aprobar_entry.get().strip()
-        motivo = self.motivo_entry.get().strip()
-        
-        if not id_nota:
-            self.mostrar_mensaje("Error", "Ingrese el ID", "error")
-            return
+    def rechazar_nota(self, id_nota):
+        dialog = ctk.CTkInputDialog(text="Motivo del rechazo:", title="Rechazar Nota")
+        motivo = dialog.get_input()
         if not motivo:
             motivo = "Sin motivo"
         
-        exito, msg = rechazar_nota(int(id_nota), motivo)
+        exito, msg = rechazar_nota(id_nota, motivo)
         if exito:
             self.mostrar_mensaje("Éxito", msg, "success")
-            self.id_aprobar_entry.delete(0, 'end')
-            self.motivo_entry.delete(0, 'end')
-            self.cargar_tablas()
+            self.cargar_tabla()
         else:
             self.mostrar_mensaje("Error", msg, "error")
     
@@ -534,7 +457,6 @@ class PanelNotas(ctk.CTkFrame):
 class PanelEstudiante(ctk.CTkFrame):
     def __init__(self, master, usuario_actual, **kwargs):
         super().__init__(master, **kwargs)
-        self.usuario_actual = usuario_actual
         self.configure(fg_color="transparent")
         
         frame = ctk.CTkFrame(self, corner_radius=20)
@@ -543,25 +465,37 @@ class PanelEstudiante(ctk.CTkFrame):
         ctk.CTkLabel(frame, text=f"🎓 ¡Bienvenido Estudiante {usuario_actual['nombre']}!", 
                     font=ctk.CTkFont(size=20, weight="bold")).pack(pady=20)
         
-        ctk.CTkLabel(frame, text=f"Cédula: {usuario_actual['cedula']}", font=ctk.CTkFont(size=12, slant="italic")).pack(pady=5)
-        
-        separator = ctk.CTkFrame(frame, height=2, fg_color="#3498db")
-        separator.pack(fill="x", pady=15, padx=50)
-        
-        ctk.CTkLabel(frame, text="📚 MIS CALIFICACIONES", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=5)
-        
-        notas_frame = ctk.CTkScrollableFrame(frame, fg_color="transparent")
+        notas_frame = ctk.CTkScrollableFrame(frame, label_text="📚 MIS CALIFICACIONES")
         notas_frame.pack(fill="both", expand=True, pady=10, padx=20)
         
-        # Cargar notas del estudiante
-        notas = obtener_notas_estudiante(usuario_actual['cedula'])
+        conn = conectar()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT codigo_materia, nota, comentario, fecha, estado
+            FROM notas
+            WHERE cedula = ?
+            ORDER BY id DESC
+        """, (usuario_actual['cedula'],))
+        notas = cursor.fetchall()
+        conn.close()
         
         if not notas:
-            ctk.CTkLabel(notas_frame, text="📭 No tienes notas registradas aún\n\nSi eres estudiante, pide a tu profesor que registre tus notas con tu cédula.", 
+            ctk.CTkLabel(notas_frame, text="📭 No tienes notas registradas", 
                         font=ctk.CTkFont(size=14, slant="italic"), text_color="gray").pack(pady=50)
         else:
-            for nota in notas:
-                materia, calif, comentario, fecha, estado = nota
+            for n in notas:
+                codigo = n[0]
+                nota_valor = n[1]
+                comentario = n[2] if n[2] else ""
+                fecha = n[3][:10] if n[3] else "Sin fecha"
+                estado = n[4] if len(n) > 4 else "pendiente"
+                
+                conn2 = conectar()
+                cursor2 = conn2.cursor()
+                cursor2.execute("SELECT nombre_materia FROM materias WHERE codigo_materia = ?", (codigo,))
+                materia = cursor2.fetchone()
+                conn2.close()
+                nombre_materia = materia[0] if materia else codigo
                 
                 if estado == "aprobada":
                     color = "#2ecc71"
@@ -571,33 +505,23 @@ class PanelEstudiante(ctk.CTkFrame):
                     estado_txt = "❌ RECHAZADA"
                 else:
                     color = "#f39c12"
-                    estado_txt = "⏳ PENDIENTE DE APROBACIÓN"
+                    estado_txt = "⏳ PENDIENTE"
                 
-                card = ctk.CTkFrame(notas_frame, corner_radius=12, fg_color="#2b2b2b")
-                card.pack(fill="x", pady=8, padx=10)
-                
-                ctk.CTkLabel(card, text=materia or "Sin materia", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=15, pady=(10,0))
-                ctk.CTkLabel(card, text=f"Calificación: {calif}", font=ctk.CTkFont(size=14, weight="bold"), text_color=color).pack(anchor="w", padx=15)
-                ctk.CTkLabel(card, text=f"Estado: {estado_txt}", font=ctk.CTkFont(size=12), text_color=color).pack(anchor="w", padx=15)
+                card = ctk.CTkFrame(notas_frame, corner_radius=10, fg_color="#2b2b2b")
+                card.pack(fill="x", pady=5, padx=10)
+                ctk.CTkLabel(card, text=nombre_materia, font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=15, pady=(10,0))
+                ctk.CTkLabel(card, text=f"Nota: {nota_valor}", font=ctk.CTkFont(size=14, weight="bold"), text_color=color).pack(anchor="w", padx=15)
                 if comentario:
-                    ctk.CTkLabel(card, text=f"💬 Comentario: {comentario}", font=ctk.CTkFont(size=11), text_color="gray").pack(anchor="w", padx=15)
-                ctk.CTkLabel(card, text=f"📅 Fecha: {fecha[:10] if fecha else 'Sin fecha'}", font=ctk.CTkFont(size=10), text_color="gray").pack(anchor="w", padx=15, pady=(0,10))
-        
-        btn_refresh = ctk.CTkButton(frame, text="🔄 REFRESCAR", command=self.refrescar_notas, fg_color="#3498db", width=150)
-        btn_refresh.pack(pady=10)
-    
-    def refrescar_notas(self):
-        # Recargar el frame
-        for widget in self.winfo_children():
-            widget.destroy()
-        self.__init__(self.master, self.usuario_actual)
+                    ctk.CTkLabel(card, text=f"💬 {comentario}", text_color="gray").pack(anchor="w", padx=15)
+                ctk.CTkLabel(card, text=f"Estado: {estado_txt}", text_color=color).pack(anchor="w", padx=15)
+                ctk.CTkLabel(card, text=f"📅 {fecha}", text_color="gray").pack(anchor="w", padx=15, pady=(0,10))
 
 # ==================== VENTANA LOGIN ====================
 class LoginWindow(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Audit Grades Pro - Login")
-        self.geometry("400x500")
+        self.geometry("400x550")
         self.resizable(False, False)
         
         frame = ctk.CTkFrame(self, corner_radius=20)
@@ -634,7 +558,7 @@ class LoginWindow(ctk.CTk):
     def registro(self):
         win = ctk.CTkToplevel(self)
         win.title("Registro de Usuario")
-        win.geometry("400x550")
+        win.geometry("450x600")
         win.grab_set()
         
         frame = ctk.CTkFrame(win, corner_radius=20)
@@ -653,7 +577,30 @@ class LoginWindow(ctk.CTk):
         
         ctk.CTkLabel(frame, text="Tipo de usuario:").pack(pady=(10,0))
         rol_var = ctk.StringVar(value="estudiante")
-        ctk.CTkOptionMenu(frame, values=["estudiante", "profesor", "control de estudio", "director"], variable=rol_var, width=250).pack(pady=5)
+        roles = ["estudiante", "profesor", "control de estudio", "director"]
+        ctk.CTkOptionMenu(frame, values=roles, variable=rol_var, width=250).pack(pady=5)
+        
+        extra1_entry = ctk.CTkEntry(frame, placeholder_text="", width=250)
+        extra1_entry.pack(pady=5)
+        extra2_entry = ctk.CTkEntry(frame, placeholder_text="", width=250)
+        extra2_entry.pack(pady=5)
+        
+        def actualizar_campos(*args):
+            rol = rol_var.get()
+            if rol == "estudiante":
+                extra1_entry.configure(placeholder_text="Carrera")
+                extra2_entry.configure(placeholder_text="Semestre")
+                extra2_entry.pack()
+            elif rol == "profesor":
+                extra1_entry.configure(placeholder_text="Carrera que dicta")
+                extra2_entry.configure(placeholder_text="Especialidad")
+                extra2_entry.pack()
+            elif rol in ["control de estudio", "director"]:
+                extra1_entry.configure(placeholder_text="Cargo")
+                extra2_entry.pack_forget()
+        
+        rol_var.trace("w", actualizar_campos)
+        actualizar_campos()
         
         error_label = ctk.CTkLabel(frame, text="")
         error_label.pack(pady=10)
@@ -663,17 +610,38 @@ class LoginWindow(ctk.CTk):
             contrasena = pass_entry.get().strip()
             nombre = nombre_entry.get().strip()
             rol = rol_var.get()
+            extra1 = extra1_entry.get().strip()
+            extra2 = extra2_entry.get().strip()
             
             if not cedula or not contrasena or not nombre:
-                error_label.configure(text="❌ Complete todos los campos", text_color="red")
+                error_label.configure(text="❌ Complete los campos obligatorios", text_color="red")
                 return
             
-            exito, msg = registrar_usuario(cedula, contrasena, rol, nombre)
-            if exito:
-                error_label.configure(text=msg, text_color="green")
+            try:
+                conn = conectar()
+                cursor = conn.cursor()
+                cursor.execute("INSERT OR IGNORE INTO usuarios (id_usuario, username, password, rol) VALUES (?, ?, ?, ?)", 
+                              (cedula, cedula, contrasena, rol))
+                
+                if rol == "estudiante":
+                    cursor.execute("INSERT OR REPLACE INTO estudiantes (cedula_estudiante, nombre_completo, carrera, semestre) VALUES (?, ?, ?, ?)", 
+                                  (cedula, nombre, extra1, extra2))
+                elif rol == "profesor":
+                    cursor.execute("INSERT OR REPLACE INTO profesores (cedula_profesor, nombre_completo, carrera, especialidad) VALUES (?, ?, ?, ?)", 
+                                  (cedula, nombre, extra1, extra2))
+                elif rol == "control de estudio":
+                    cursor.execute("INSERT OR REPLACE INTO personal (cedula_personal, nombre_completo, cargo, area) VALUES (?, ?, ?, 'Control de Estudio')", 
+                                  (cedula, nombre, extra1))
+                elif rol == "director":
+                    cursor.execute("INSERT OR REPLACE INTO personal (cedula_personal, nombre_completo, cargo, area) VALUES (?, ?, ?, 'Dirección')", 
+                                  (cedula, nombre, extra1))
+                
+                conn.commit()
+                conn.close()
+                error_label.configure(text=f"✅ {rol.title()} registrado exitosamente", text_color="green")
                 win.after(1500, win.destroy)
-            else:
-                error_label.configure(text=msg, text_color="red")
+            except Exception as e:
+                error_label.configure(text=f"❌ Error: {e}", text_color="red")
         
         ctk.CTkButton(frame, text="REGISTRAR", command=guardar, height=40).pack(pady=20)
     
@@ -692,28 +660,31 @@ class MainApp(ctk.CTk):
         self.rol = usuario['rol']
         
         self.title(f"Audit Grades Pro - {self.rol.title()}")
-        self.geometry("1100x650")
+        self.geometry("1400x750")
         
         # Barra superior
         top_bar = ctk.CTkFrame(self, height=50, fg_color="#1a1a1a")
         top_bar.pack(fill="x")
         
-        ctk.CTkLabel(top_bar, text=f"👤 {usuario['nombre']} | Rol: {self.rol.title()}", font=ctk.CTkFont(size=14)).pack(side="left", padx=20)
+        ctk.CTkLabel(top_bar, text=f"👤 {usuario['nombre']} | Rol: {self.rol.title()}", 
+                    font=ctk.CTkFont(size=14)).pack(side="left", padx=20)
         
         if self.rol in ["control de estudio", "director"]:
-            ctk.CTkLabel(top_bar, text="🔓 Permisos especiales: Aprobar/Rechazar notas", font=ctk.CTkFont(size=11), text_color="#2ecc71").pack(side="left", padx=20)
+            ctk.CTkLabel(top_bar, text="🔓 Permisos: Aprobar/Rechazar", 
+                        font=ctk.CTkFont(size=11), text_color="#2ecc71").pack(side="left", padx=20)
         
-        btn_logout = ctk.CTkButton(top_bar, text="CERRAR SESIÓN", command=self.logout, fg_color="#e74c3c", width=120)
+        btn_logout = ctk.CTkButton(top_bar, text="CERRAR SESIÓN", command=self.logout, 
+                                   fg_color="#e74c3c", width=120)
         btn_logout.pack(side="right", padx=20, pady=5)
         
         # Contenido
-        self.content = ctk.CTkFrame(self, fg_color="transparent")
-        self.content.pack(fill="both", expand=True, padx=10, pady=10)
+        self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.content_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         if self.rol == "estudiante":
-            PanelEstudiante(self.content, self.usuario).pack(fill="both", expand=True)
+            PanelEstudiante(self.content_frame, self.usuario).pack(fill="both", expand=True)
         else:
-            PanelNotas(self.content, self.usuario).pack(fill="both", expand=True)
+            PanelNotas(self.content_frame, self.usuario).pack(fill="both", expand=True)
     
     def logout(self):
         self.destroy()
