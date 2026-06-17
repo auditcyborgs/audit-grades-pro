@@ -138,7 +138,7 @@ def aprobar_nota(id_nota):
         cursor.execute("UPDATE notas SET estado = 'aprobada' WHERE id = ?", (id_nota,))
         conn.commit()
         conn.close()
-        return True, "Nota aprobada"
+        return True, f"✅ Nota ID {id_nota} aprobada correctamente"
     except Exception as e:
         return False, str(e)
 
@@ -161,7 +161,7 @@ def rechazar_nota(id_nota, motivo):
         cursor.execute("UPDATE notas SET estado = 'rechazada', comentario = ? WHERE id = ?", (f"RECHAZADA: {motivo}", id_nota))
         conn.commit()
         conn.close()
-        return True, "Nota rechazada"
+        return True, f"❌ Nota ID {id_nota} rechazada"
     except Exception as e:
         return False, str(e)
 
@@ -261,85 +261,86 @@ class PanelNotas(ctk.CTkFrame):
         self.tabla_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.tabla_frame.pack(fill="both", expand=True, padx=20, pady=10)
         
-        # --- PANEL INFERIOR: MODIFICAR / ELIMINAR ---
-        panel_inferior = ctk.CTkFrame(self, corner_radius=15, fg_color="#2b2b2b")
-        panel_inferior.pack(fill="x", padx=20, pady=10)
+        # --- PANEL INFERIOR 1: MODIFICAR / ELIMINAR ---
+        panel_modificar = ctk.CTkFrame(self, corner_radius=15, fg_color="#2b2b2b")
+        panel_modificar.pack(fill="x", padx=20, pady=10)
         
-        ctk.CTkLabel(panel_inferior, text="✏️ MODIFICAR / ELIMINAR NOTA", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
+        ctk.CTkLabel(panel_modificar, text="✏️ MODIFICAR / ELIMINAR NOTA", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
         
-        campos_inferior = ctk.CTkFrame(panel_inferior, fg_color="transparent")
-        campos_inferior.pack(fill="x", padx=20, pady=10)
+        campos_modificar = ctk.CTkFrame(panel_modificar, fg_color="transparent")
+        campos_modificar.pack(fill="x", padx=20, pady=10)
         
-        ctk.CTkLabel(campos_inferior, text="ID Nota:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
-        self.id_nota_entry = ctk.CTkEntry(campos_inferior, placeholder_text="ID de la nota", width=100)
+        ctk.CTkLabel(campos_modificar, text="ID Nota:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        self.id_nota_entry = ctk.CTkEntry(campos_modificar, placeholder_text="ID de la nota", width=100)
         self.id_nota_entry.grid(row=1, column=0, padx=10, pady=5)
         
-        ctk.CTkLabel(campos_inferior, text="Nueva Nota:").grid(row=0, column=1, padx=10, pady=5, sticky="w")
-        self.nueva_nota_entry = ctk.CTkEntry(campos_inferior, placeholder_text="0-20", width=100)
+        ctk.CTkLabel(campos_modificar, text="Nueva Nota:").grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        self.nueva_nota_entry = ctk.CTkEntry(campos_modificar, placeholder_text="0-20", width=100)
         self.nueva_nota_entry.grid(row=1, column=1, padx=10, pady=5)
         
-        ctk.CTkLabel(campos_inferior, text="Nuevo Comentario:").grid(row=0, column=2, padx=10, pady=5, sticky="w")
-        self.nuevo_comentario_entry = ctk.CTkEntry(campos_inferior, placeholder_text="Comentario", width=180)
+        ctk.CTkLabel(campos_modificar, text="Nuevo Comentario:").grid(row=0, column=2, padx=10, pady=5, sticky="w")
+        self.nuevo_comentario_entry = ctk.CTkEntry(campos_modificar, placeholder_text="Comentario", width=180)
         self.nuevo_comentario_entry.grid(row=1, column=2, padx=10, pady=5)
         
-        btn_frame_inferior = ctk.CTkFrame(campos_inferior, fg_color="transparent")
-        btn_frame_inferior.grid(row=1, column=3, padx=10, pady=5)
+        btn_frame_modificar = ctk.CTkFrame(campos_modificar, fg_color="transparent")
+        btn_frame_modificar.grid(row=1, column=3, padx=10, pady=5)
         
-        btn_actualizar = ctk.CTkButton(btn_frame_inferior, text="💾 ACTUALIZAR", command=self.actualizar_nota_panel, 
+        btn_actualizar = ctk.CTkButton(btn_frame_modificar, text="💾 ACTUALIZAR", command=self.actualizar_nota_panel, 
                                       fg_color="#e67e22", height=38, width=120)
         btn_actualizar.pack(side="left", padx=5)
         
-        btn_eliminar = ctk.CTkButton(btn_frame_inferior, text="🗑️ ELIMINAR", command=self.eliminar_nota_panel, 
+        btn_eliminar = ctk.CTkButton(btn_frame_modificar, text="🗑️ ELIMINAR", command=self.eliminar_nota_panel, 
                                     fg_color="#e74c3c", height=38, width=120)
         btn_eliminar.pack(side="left", padx=5)
         
-        # --- PANEL DE APROBACIÓN (solo para control de estudio y director) ---
+        # --- PANEL INFERIOR 2: APROBAR / RECHAZAR (solo para control de estudio y director) ---
         if self.puede_aprobar:
             panel_aprobacion = ctk.CTkFrame(self, corner_radius=15, fg_color="#2b2b2b")
             panel_aprobacion.pack(fill="x", padx=20, pady=10)
             
             ctk.CTkLabel(panel_aprobacion, text="✅ APROBAR / RECHAZAR NOTA", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
             
-            # Mostrar cuántas notas están pendientes
+            # Contador de notas pendientes
             notas_pendientes = contar_notas_pendientes()
             lbl_pendientes = ctk.CTkLabel(panel_aprobacion, text=f"📊 Notas pendientes de aprobación: {notas_pendientes}", 
                                          font=ctk.CTkFont(size=13), text_color="#f39c12")
             lbl_pendientes.pack(pady=5)
             
-            # --- BOTÓN APROBAR TODAS (NUEVO) ---
+            # --- BOTÓN APROBAR TODAS ---
             btn_aprobar_todo = ctk.CTkButton(panel_aprobacion, text="✅ APROBAR TODAS LAS NOTAS", 
                                             command=self.aprobar_todas_notas_panel,
                                             fg_color="#2ecc71", hover_color="#27ae60", 
-                                            height=45, font=ctk.CTkFont(size=14, weight="bold"))
+                                            height=40, font=ctk.CTkFont(size=13, weight="bold"))
             btn_aprobar_todo.pack(pady=10, padx=20)
             
-            ctk.CTkLabel(panel_aprobacion, text="─" * 50, font=ctk.CTkFont(size=10)).pack()
+            # --- APROBAR/RECHAZAR INDIVIDUAL (todo junto en una fila) ---
+            frame_individual = ctk.CTkFrame(panel_aprobacion, fg_color="transparent")
+            frame_individual.pack(fill="x", padx=20, pady=10)
             
-            # --- CAMPOS PARA APROBAR/RECHAZAR INDIVIDUALMENTE ---
-            ctk.CTkLabel(panel_aprobacion, text="Aprobar/Rechazar Individual:", font=ctk.CTkFont(size=13, weight="bold")).pack(pady=5)
-            
-            campos_aprobacion = ctk.CTkFrame(panel_aprobacion, fg_color="transparent")
-            campos_aprobacion.pack(fill="x", padx=20, pady=10)
-            
-            ctk.CTkLabel(campos_aprobacion, text="ID Nota:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
-            self.id_aprobar_entry = ctk.CTkEntry(campos_aprobacion, placeholder_text="ID", width=100)
+            # ID de la nota
+            ctk.CTkLabel(frame_individual, text="ID Nota:", font=ctk.CTkFont(size=12, weight="bold")).grid(row=0, column=0, padx=10, pady=5, sticky="w")
+            self.id_aprobar_entry = ctk.CTkEntry(frame_individual, placeholder_text="Ej: 10", width=100, height=35)
             self.id_aprobar_entry.grid(row=1, column=0, padx=10, pady=5)
             
-            ctk.CTkLabel(campos_aprobacion, text="Motivo (si rechazo):").grid(row=0, column=1, padx=10, pady=5, sticky="w")
-            self.motivo_rechazo_entry = ctk.CTkEntry(campos_aprobacion, placeholder_text="Motivo del rechazo", width=200)
+            # Motivo (para rechazo)
+            ctk.CTkLabel(frame_individual, text="Motivo:", font=ctk.CTkFont(size=12, weight="bold")).grid(row=0, column=1, padx=10, pady=5, sticky="w")
+            self.motivo_rechazo_entry = ctk.CTkEntry(frame_individual, placeholder_text="Motivo del rechazo", width=200, height=35)
             self.motivo_rechazo_entry.grid(row=1, column=1, padx=10, pady=5)
             
-            btn_frame_aprobacion = ctk.CTkFrame(campos_aprobacion, fg_color="transparent")
-            btn_frame_aprobacion.grid(row=1, column=2, padx=10, pady=5)
+            # Botones APROBAR y RECHAZAR (juntos)
+            btn_frame = ctk.CTkFrame(frame_individual, fg_color="transparent")
+            btn_frame.grid(row=1, column=2, padx=10, pady=5)
             
-            # Botón APROBAR individual
-            btn_aprobar = ctk.CTkButton(btn_frame_aprobacion, text="✅ APROBAR", command=self.aprobar_nota_panel, 
-                                       fg_color="#2ecc71", height=38, width=100)
+            btn_aprobar = ctk.CTkButton(btn_frame, text="✅ APROBAR", 
+                                       command=self.aprobar_nota_panel, 
+                                       fg_color="#2ecc71", hover_color="#27ae60",
+                                       height=38, width=110, font=ctk.CTkFont(size=12, weight="bold"))
             btn_aprobar.pack(side="left", padx=5)
             
-            # Botón RECHAZAR individual
-            btn_rechazar = ctk.CTkButton(btn_frame_aprobacion, text="❌ RECHAZAR", command=self.rechazar_nota_panel, 
-                                        fg_color="#e74c3c", height=38, width=100)
+            btn_rechazar = ctk.CTkButton(btn_frame, text="❌ RECHAZAR", 
+                                        command=self.rechazar_nota_panel, 
+                                        fg_color="#e74c3c", hover_color="#c0392b",
+                                        height=38, width=110, font=ctk.CTkFont(size=12, weight="bold"))
             btn_rechazar.pack(side="left", padx=5)
         
         # --- BOTÓN REFRESCAR ---
@@ -479,32 +480,63 @@ class PanelNotas(ctk.CTkFrame):
             self.mostrar_mensaje("Error", msg, "error")
     
     def aprobar_nota_panel(self):
+        """Aprueba una nota individual usando el ID ingresado"""
         id_nota = self.id_aprobar_entry.get().strip()
         
         if not id_nota:
-            self.mostrar_mensaje("Error", "Ingrese el ID de la nota", "error")
+            self.mostrar_mensaje("Error", "❌ Ingrese el ID de la nota", "error")
             return
         
-        exito, msg = aprobar_nota(int(id_nota))
+        try:
+            id_int = int(id_nota)
+        except:
+            self.mostrar_mensaje("Error", "❌ El ID debe ser un número", "error")
+            return
+        
+        # Confirmar antes de aprobar
+        dialog = ctk.CTkInputDialog(
+            text=f"⚠️ ¿Estás seguro de APROBAR la nota ID {id_int}?\n\nEscribe 'CONFIRMAR' para continuar:", 
+            title="Confirmar Aprobación"
+        )
+        if dialog.get_input() != "CONFIRMAR":
+            return
+        
+        exito, msg = aprobar_nota(id_int)
         if exito:
             self.mostrar_mensaje("Éxito", msg, "success")
             self.id_aprobar_entry.delete(0, 'end')
+            self.motivo_rechazo_entry.delete(0, 'end')
             self.cargar_tabla()
         else:
             self.mostrar_mensaje("Error", msg, "error")
     
     def rechazar_nota_panel(self):
+        """Rechaza una nota individual usando el ID ingresado"""
         id_nota = self.id_aprobar_entry.get().strip()
         motivo = self.motivo_rechazo_entry.get().strip()
         
         if not id_nota:
-            self.mostrar_mensaje("Error", "Ingrese el ID de la nota", "error")
+            self.mostrar_mensaje("Error", "❌ Ingrese el ID de la nota", "error")
+            return
+        
+        try:
+            id_int = int(id_nota)
+        except:
+            self.mostrar_mensaje("Error", "❌ El ID debe ser un número", "error")
             return
         
         if not motivo:
             motivo = "Sin motivo especificado"
         
-        exito, msg = rechazar_nota(int(id_nota), motivo)
+        # Confirmar antes de rechazar
+        dialog = ctk.CTkInputDialog(
+            text=f"⚠️ ¿Estás seguro de RECHAZAR la nota ID {id_int}?\nMotivo: {motivo}\n\nEscribe 'CONFIRMAR' para continuar:", 
+            title="Confirmar Rechazo"
+        )
+        if dialog.get_input() != "CONFIRMAR":
+            return
+        
+        exito, msg = rechazar_nota(id_int, motivo)
         if exito:
             self.mostrar_mensaje("Éxito", msg, "success")
             self.id_aprobar_entry.delete(0, 'end')
@@ -514,6 +546,7 @@ class PanelNotas(ctk.CTkFrame):
             self.mostrar_mensaje("Error", msg, "error")
     
     def aprobar_todas_notas_panel(self):
+        """Aprueba TODAS las notas pendientes"""
         pendientes = contar_notas_pendientes()
         
         if pendientes == 0:
@@ -537,7 +570,7 @@ class PanelNotas(ctk.CTkFrame):
     def mostrar_mensaje(self, titulo, mensaje, tipo="info"):
         dialog = ctk.CTkToplevel(self)
         dialog.title(titulo)
-        dialog.geometry("350x120")
+        dialog.geometry("400x120")
         dialog.grab_set()
         
         colores = {"success": "#2ecc71", "error": "#e74c3c", "info": "#3498db"}
@@ -751,7 +784,7 @@ class MainApp(ctk.CTk):
         self.rol = usuario['rol']
         
         self.title(f"Audit Grades Pro - {self.rol.title()}")
-        self.geometry("1400x850")
+        self.geometry("1400x900")
         
         top_bar = ctk.CTkFrame(self, height=50, fg_color="#1a1a1a")
         top_bar.pack(fill="x")
