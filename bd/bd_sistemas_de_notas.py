@@ -1,13 +1,15 @@
 import os
 import sqlite3
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 def crear_tablas():
     conexion = None
     cursor = None
     try:
         # Ruta del SQLite3 
-        ruta_carpeta = r"C:\Sistema_de_notas\audit-grades-pro\bd"
+        ruta_carpeta = os.path.join(BASE_DIR, "bd")
         ruta_bd = os.path.join(ruta_carpeta, "sistema_de_notas.db")
 
         

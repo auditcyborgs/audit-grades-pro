@@ -1,7 +1,8 @@
 import sqlite3
 import os
 
-DB_PATH = os.path.join("bd", "sistema_de_notas.db")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH = os.path.join(BASE_DIR, "bd", "sistema_de_notas.db")
 
 def crear_estructura_materias():
     """Crea la tabla materias y actualiza la estructura de notas"""

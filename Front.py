@@ -7,7 +7,8 @@ import os
 # CONFIGURACIÓN Y VERIFICACIÓN AUTOMÁTICA DE LA BASE DE DATOS
 # =====================================================================
 
-DB_PATH = os.path.join("bd", "sistema_de_notas.db")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "bd", "sistema_de_notas.db")
 
 def verificar_y_crear_estructura():
     """Verifica y crea automáticamente la estructura necesaria si no existe"""
